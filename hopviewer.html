@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hopviewer — 점프·회수 타임테이블</title>
+<style>
+:root{
+  --bg:#0b0f15;--panel:#121821;--panel2:#18202b;--line:#253041;--line2:#1d2633;
+  --text:#e4eaf2;--muted:#8a97a8;--faint:#5c697b;--accent:#5b9dff;--accent-bg:#1a2b47;
+  --ok:#34c47c;--warn:#e9c04a;--bad:#ff4d5e;
+  --r-start:#8f86f0;--r-jump:#5b9dff;--r-target:#22d3ee;--r-fetch:#ff9a3d;--r-other:#6b7787;
+  --mono:ui-monospace,"Cascadia Mono","D2Coding",Consolas,"SFMono-Regular",monospace;
+  --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+:root[data-theme=light]{
+  --bg:#f5f7fa;--panel:#ffffff;--panel2:#f0f3f7;--line:#d9dfe7;--line2:#e7ebf0;
+  --text:#18212d;--muted:#5d6b7c;--faint:#8b97a6;--accent:#2563eb;--accent-bg:#e5eeff;
+  --ok:#15803d;--warn:#a77d00;--bad:#d92638;
+  --r-start:#6d5ae6;--r-jump:#2563eb;--r-target:#0e7490;--r-fetch:#d9690f;--r-other:#8b97a6;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);cursor:pointer;text-decoration:none}
+a:hover{text-decoration:underline}
+code,.mono{font-family:var(--mono);font-size:12.5px}
+button,input,textarea,select{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.hwrap{max-width:1560px;margin:0 auto;padding:12px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.brand svg{color:var(--r-fetch)}
+.brand small{font-weight:500;color:var(--muted);font-size:12.5px}
+.spacer{flex:1}
+.ctl{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12.5px}
+.ctl input[type=text],.ctl input[type=number]{width:74px}
+input[type=text],input[type=number],textarea{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 8px;outline:none}
+input:focus,textarea:focus{border-color:var(--accent)}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.btn:hover{color:var(--text);border-color:var(--faint)}
+.btn.pri{background:var(--accent-bg);color:var(--accent);border-color:transparent;font-weight:600}
+main{max-width:1560px;margin:0 auto;padding:16px 20px 60px}
+h2.sect{font-size:15px;margin:26px 0 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.empty{padding:22px;color:var(--muted);text-align:center}
+.help{color:var(--muted);font-size:12.5px;padding:10px 14px;line-height:1.7}
+.help b{color:var(--text)}
+
+/* 서버 슬롯 */
+.slots{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:4px}
+.slot{flex:1 1 0;min-width:240px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.slot.drag{border-color:var(--accent);background:var(--accent-bg)}
+.arrow{flex:0 0 34px;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:20px}
+.sh{display:flex;align-items:center;gap:8px}
+.lvn{width:22px;height:22px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
+.sh input.nm{flex:1;font-weight:700;min-width:0}
+.xbtn{background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
+.xbtn:hover{color:var(--bad)}
+.slot label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted)}
+.slot label input{width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.drop{border:1px dashed var(--line);border-radius:8px;padding:10px;text-align:center;font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{background:var(--panel2);border:1px solid var(--line2);border-radius:999px;padding:1px 4px 1px 9px;font-size:11.5px;display:inline-flex;align-items:center;gap:2px;max-width:100%}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot textarea{width:100%;height:84px;resize:vertical;font-family:var(--mono);font-size:11.5px;white-space:pre}
+.info{font-size:11.5px;color:var(--muted);line-height:1.6}
+.info .w{color:var(--warn)}
+.info .sg a{font-family:var(--mono)}
+.addcol{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;gap:6px;padding-left:12px}
+
+/* 공통 배지 */
+.bd{font-size:11px;padding:0 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.bd.ok{color:var(--ok);border-color:currentColor}
+.bd.warn{color:var(--warn);border-color:currentColor}
+.bd.bad{color:var(--bad);border-color:currentColor}
+.bd.acc{color:var(--accent);border-color:currentColor}
+
+/* 입력 접기 */
+.insum{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;padding:8px 12px;font-size:12.5px;color:var(--muted)}
+.insum b{color:var(--text)}
+
+/* 작업 화면: 왼쪽 체인 목록 | 오른쪽 그래프 + 순서표 (화면 높이에 맞춤) */
+.ws{display:grid;grid-template-columns:300px minmax(0,1fr);gap:12px;height:calc(100vh - var(--hh,56px) - 16px);min-height:460px;scroll-margin-top:calc(var(--hh,56px) + 8px)}
+.ws>.panel{min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.clbar{padding:8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px;flex:none}
+.clbar input{width:100%}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{flex:1;background:none;border:0;border-left:1px solid var(--line);padding:3px 4px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.seg .n{font-weight:500;opacity:.75;margin-left:3px;font-size:11px}
+.cllist{flex:1;overflow:auto}
+.ci{padding:6px 10px 6px 8px;border-bottom:1px solid var(--line2);border-left:3px solid transparent;cursor:pointer}
+.ci:hover{background:var(--panel2)}
+.ci.on{background:var(--accent-bg);border-left-color:var(--accent)}
+.ci .l1{display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap}
+.ci .no{color:var(--faint);font-weight:500;font-size:11px;min-width:30px}
+.ci .l1 .bds{margin-left:auto;display:flex;gap:3px}
+.ci .l2{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:36px}
+.clfoot{padding:6px 10px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);flex:none}
+.dhead{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px;flex:none}
+.dt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+.dt .ttl{font-weight:700;font-size:13.5px}
+.steps{display:flex;flex-wrap:wrap;gap:4px}
+.stp{font-size:11.5px;padding:0 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;cursor:default}
+.stp.ok{color:var(--ok)} .stp.no{color:var(--bad)} .stp.mid{color:var(--warn)}
+.gwrap{padding:6px 12px 2px;overflow-x:auto;flex:none}
+.gwrap svg{display:block}
+.gwrap text{font-family:var(--sans);font-size:11px;fill:var(--muted)}
+.gwrap .ln{font-weight:700;fill:var(--text);font-size:12px}
+.gwrap rect{cursor:pointer}
+.gwrap rect.hl{stroke:var(--text);stroke-width:2}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted);padding:0 12px 6px;flex:none}
+.legend i{display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.dtable{flex:1;overflow:auto;min-height:120px;border-top:1px solid var(--line)}
+.dtable td{padding:5px 8px}
+.dtable td.mono{white-space:nowrap;font-size:11.5px}
+.dtable td.act{min-width:240px}
+.dtable .raw{max-width:220px}
+tr.hl td{background:var(--accent-bg)}
+.kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
+@media (max-width:900px){
+  .ws{display:block;height:auto}
+  .ws>.panel{margin-bottom:12px}
+  .cllist{max-height:40vh}
+  .dtable{max-height:70vh}
+}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:11.5px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel2);position:sticky;top:0;white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.tm{font-family:var(--mono);white-space:nowrap}
+td.act{min-width:280px}
+td.dim,.dim{color:var(--faint)}
+tr.out td{color:var(--muted)}
+.role{display:inline-block;width:4px;align-self:stretch;border-radius:2px}
+td.rc{padding:0 0 0 0;width:4px}
+td.rc div{width:4px;height:100%;min-height:22px}
+.sv{display:inline-block;font-weight:700;font-size:11.5px;padding:0 7px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+.raw{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.tbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tbar .spacer{flex:1}
+.tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);padding:0 8px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 12px;cursor:pointer;color:var(--muted);font-weight:600;white-space:nowrap}
+.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+.tabs .n{font-weight:500;color:var(--faint);font-size:12px;margin-left:4px}
+.scroll{max-height:560px;overflow:auto}
+tr.clk{cursor:pointer}
+tr.clk:hover td{background:var(--panel2)}
+tr.selrow td{background:var(--accent-bg)}
+.hint{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 7.5l3 3M14 13.5l3 3"/></svg>
+      hopviewer <small>last 로그로 서버 점프(A→B→C→D)와 역순 SFTP 회수 시간표 정리</small>
+    </div>
+    <div class="spacer"></div>
+    <label class="ctl" title="같은 시각으로 볼 허용 오차. last 기본 출력은 분 단위라 60초 이상 권장">허용 오차(초) <input type="number" id="tol" value="60" min="0" step="10"></label>
+    <label class="ctl" title="wtmp 바이너리와 ISO(+시간대) 형식 시각을 이 시간대로 바꿔 보여줍니다. 시간대가 없는 last 텍스트는 적힌 그대로 씁니다">표시 시간대 <input type="text" id="tz" value="+09:00"></label>
+    <label class="ctl" title="서버 IP 칸을 채운 경우, 다음 서버 last 의 출발지(FROM)가 그 IP 인 세션만 연결"><input type="checkbox" id="strict"> 출발지 IP 일치만</label>
+    <button class="btn" id="sample">예시 데이터</button>
+    <button class="btn" id="theme">테마</button>
+  </div>
+</header>
+<main>
+  <h2 class="sect">1. 서버 순서대로 last 로그 넣기 <small>왼쪽이 출발 서버. last 출력(.txt, -F·-i·-a·--time-format iso 모두 가능) 또는 wtmp 파일(.gz 가능)을 각 칸에 끌어다 놓거나 붙여넣기</small>
+    <button class="btn" id="fold" style="margin-left:auto">접기</button></h2>
+  <div class="slots" id="slots"></div>
+  <div class="panel insum" id="insum" hidden></div>
+
+  <h2 class="sect">2. 접속 체인 · 타임테이블 <small>왼쪽에서 체인을 고르면(<span class="kbd">↑</span> <span class="kbd">↓</span> 키로 이동) 오른쪽에 그래프와 시간 순서표 — 계정명은 보지 않고 시간만 봅니다</small>
+    <button class="btn" id="toWs" style="margin-left:auto">화면 맞춤</button></h2>
+  <div class="ws" id="ws">
+    <aside class="panel">
+      <div class="clbar">
+        <div class="seg" id="cf"></div>
+        <input type="text" id="cq" placeholder="검색: 날짜(10-03)·IP·계정">
+      </div>
+      <div class="cllist" id="chains"></div>
+      <div class="clfoot" id="clfoot"></div>
+    </aside>
+    <section class="panel" id="detail"></section>
+  </div>
+
+  <h2 class="sect">4. 서버별 전체 세션 <small>행을 누르면 그 세션이 속한 체인으로 이동</small></h2>
+  <div class="panel" id="all"></div>
+
+  <div class="panel help" style="margin-top:26px">
+    <b>판정 방법</b><br>
+    · A 에서 B 로 접속한 세션은 B 의 last 에 남고, 그 세션이 살아 있는 동안 B→C, C→D 접속이 일어납니다. 그래서 <b>다음 서버 세션의 [로그인~로그아웃]이 앞 서버 세션 안에 들어가면</b> 그 둘을 부모-자식으로 잇습니다. 후보가 여러 개면 가장 늦게 시작한(가장 촘촘한) 앞 서버 세션을 고릅니다.<br>
+    · 한 부모 아래에서 <b>먼저 들어간 세션이 끝난 뒤(exit 로 복귀한 뒤) 다시 생긴 세션</b>은 "재접속 — 파일 가져오기(sftp) 추정"으로 표시합니다. D→C, C→B, B→A 순서로 재접속이 이어지면 <b>역순 회수 패턴</b>으로 판정합니다.<br>
+    · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
+    · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
+    · 서버마다 시계가 다르면 각 칸의 <b>시간 보정(초)</b>에 더할 값을 넣으세요(예: B 시계가 90초 빠르면 -90). 연도 없는 last 출력은 <code>wtmp begins</code> 줄 → 요일 순으로 연도를 추정하며, 연도 칸에 직접 적을 수도 있습니다.<br>
+    · <code>/var/log/lastlog</code> 는 계정별 마지막 1회만 있어 이 분석에 쓸 수 없습니다. <code>last -F -i -f /var/log/wtmp</code> 출력이나 <code>wtmp</code>(·<code>wtmp.1</code>) 파일을 넣으세요.
+  </div>
+</main>
+
+<script>
+'use strict';
+/* ───────── 상태 ───────── */
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, tab: 0, onlyMatched: false, q: '', cf: 'all', cq: '', shown: [], fold: false };
+const NAMES = 'ABCDEFGH';
+const MONS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
+const WD = 'Sun Mon Tue Wed Thu Fri Sat'.split(' ');
+const ROLE = {
+  start: { c: 'var(--r-start)', t: '출발 세션' },
+  jump: { c: 'var(--r-jump)', t: '점프(경유)' },
+  target: { c: 'var(--r-target)', t: '최종 서버' },
+  fetch: { c: 'var(--r-fetch)', t: '복귀 후 재접속(sftp 추정)' },
+  other: { c: 'var(--r-other)', t: '기타 접속' },
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const newSlot = name => ({ name, ip: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
+
+/* ───────── 시간 표시 (모든 시각은 '표시 시간대 벽시계' ms 를 UTC 필드로 저장) ───────── */
+const fD = t => { const d = new Date(t); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+const fT = (t, sec) => { const d = new Date(t); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + (sec ? ':' + pad(d.getUTCSeconds()) : ''); };
+const fDT = (t, sec) => fD(t) + ' ' + fT(t, sec);
+function fDur(ms, sec) {
+  if (ms == null || !isFinite(ms)) return '';
+  const neg = ms < 0; let x = Math.round(Math.abs(ms) / 1000);
+  const d = Math.floor(x / 86400), h = Math.floor(x % 86400 / 3600), m = Math.floor(x % 3600 / 60), s = x % 60;
+  const body = d ? `${d}일 ${pad(h)}:${pad(m)}` : sec ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}`;
+  return (neg ? '-' : '') + body;
+}
+function parseTz(v) {
+  const m = /^\s*(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d\d))?\s*$/i.exec(v || '');
+  return m ? (m[1] === '-' ? -1 : 1) * (+m[2] * 60 + +(m[3] || 0)) : 540;
+}
+
+/* ───────── last 텍스트 파싱 ───────── */
+const RX_C = /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{1,2}):(\d\d)(?::(\d\d))?(?:\s+(\d{4}))?/;
+const RX_I = /\b(\d{4})[-/.](\d\d?)[-/.](\d\d?)[T ]\s*(\d\d):(\d\d)(?::(\d\d)(?:[.,]\d+)?)?(Z|[+-]\d\d:?\d\d)?/;
+const RX_MD = /(?:^|\s)(\d{1,2})[-/.](\d{1,2})\s+(\d{1,2}):(\d\d)(?::(\d\d))?(?=\s|$)/;
+function findDate(str) {
+  const a = RX_C.exec(str), b = RX_I.exec(str), c = RX_MD.exec(str);
+  if (c && (!a || c.index < a.index) && (!b || c.index < b.index)) {
+    const off = c[0].length - c[0].trimStart().length;
+    return { index: c.index + off, len: c[0].length - off, k: 'c', wd: -1, mon: +c[1] - 1, day: +c[2], h: +c[3], mi: +c[4], s: c[5] == null ? null : +c[5], year: null };
+  }
+  if (a && (!b || a.index <= b.index))
+    return { index: a.index, len: a[0].length, k: 'c', wd: WD.indexOf(a[1]), mon: MONS.indexOf(a[2]), day: +a[3], h: +a[4], mi: +a[5], s: a[6] == null ? null : +a[6], year: a[7] ? +a[7] : null };
+  if (b) {
+    let wall = Date.UTC(+b[1], +b[2] - 1, +b[3], +b[4], +b[5], +(b[6] || 0));
+    if (b[7]) {
+      const off = b[7] === 'Z' ? 0 : parseTz(b[7]);
+      wall = wall - off * 60000 + S.tz * 60000;
+    }
+    return { index: b.index, len: b[0].length, k: 'i', wall, s: b[6] == null ? null : +b[6], year: +b[1] };
+  }
+  return null;
+}
+function yearByWeekday(mon, day, wd, refY) {
+  for (let y = refY; y > refY - 14; y--) if (new Date(Date.UTC(y, mon, day)).getUTCDay() === wd) return y;
+  return refY;
+}
+
+function parseLastText(text, slot, fname) {
+  const recs = [], warns = [], notes = [];
+  let beginsYear = null, skipped = 0;
+  text.split(/\r?\n/).forEach((ln, i) => {
+    const L = ln.replace(/\s+$/, ''); const t = L.trim();
+    if (!t) return;
+    let m;
+    if ((m = /^[wb]tmp\S*\s+begins\s+(.*)$/.exec(t))) { const d = findDate(m[1]); if (d && d.year) beginsYear = d.year; return; }
+    if (/^(reboot|shutdown|runlevel)\s/.test(t)) return;
+    const d = findDate(L);
+    if (!d) { skipped++; return; }
+    const head = L.slice(0, d.index).trim().split(/\s+/).filter(Boolean);
+    if (!head.length) { skipped++; return; }
+    const rest = L.slice(d.index + d.len);
+    const r = { line: i + 1, raw: t, src: fname, user: head[0], tty: head[1] || '', host: head.slice(2).join(' '), st: d };
+    const md = /\((?:(\d+)\+)?(\d+):(\d\d)(?::(\d\d))?\)/.exec(rest);
+    if (md) r.durMs = ((+(md[1] || 0)) * 86400 + (+md[2]) * 3600 + (+md[3]) * 60 + (+(md[4] || 0))) * 1000;
+    const ep = rest.replace(/^\s*-\s*/, '');
+    if (/still logged in|still running/.test(rest)) r.endKind = 'still';
+    else if (/gone - no logout/.test(rest)) r.endKind = 'gone';
+    else if (/^\s*-?\s*crash/.test(rest)) r.endKind = 'crash';
+    else if (/^\s*-?\s*down/.test(rest)) r.endKind = 'down';
+    else {
+      const de = findDate(ep);
+      if (de && de.index < 3) { r.en = de; r.endKind = 'logout'; }
+      else {
+        const mt = /^(\d{1,2}):(\d\d)(?::(\d\d))?/.exec(ep);
+        if (mt) { r.endTime = [+mt[1], +mt[2], mt[3] == null ? null : +mt[3]]; r.endKind = 'logout'; }
+        else r.endKind = 'gone';
+      }
+    }
+    if (!r.host && md) { const tail = rest.slice(md.index + md[0].length).trim(); if (tail) r.host = tail; } // last -a
+    recs.push(r);
+  });
+  if (skipped) notes.push(`${skipped}줄은 형식을 몰라 건너뜀`);
+
+  // 연도 정하기 (last 는 최근 → 과거 순)
+  const fixed = /^\d{4}$/.test(String(slot.year).trim()) ? +slot.year : null;
+  const ctimeNoYear = recs.filter(r => r.st.k === 'c' && r.st.year == null);
+  if (ctimeNoYear.length) {
+    if (fixed || beginsYear) {
+      let y = fixed || beginsYear, pm = null;           // 가장 오래된 줄부터 앞으로
+      for (let j = recs.length - 1; j >= 0; j--) {
+        const st = recs[j].st; if (st.k !== 'c') continue;
+        if (st.year != null) { y = st.year; pm = st.mon; continue; }
+        if (pm != null && pm - st.mon >= 6) y++;
+        st.year = y; pm = st.mon;
+      }
+      notes.push(`연도: ${fixed ? '직접 지정 ' + fixed : 'wtmp begins 기준 ' + beginsYear}부터`);
+    } else {
+      const top = ctimeNoYear[0];
+      const refY = new Date().getFullYear();
+      let y = top.st.wd >= 0 ? yearByWeekday(top.st.mon, top.st.day, top.st.wd, refY) : refY, pm = null;
+      for (const r of recs) {                            // 최신 줄부터 뒤로
+        const st = r.st; if (st.k !== 'c') continue;
+        if (st.year != null) { y = st.year; pm = st.mon; continue; }
+        if (pm != null && st.mon - pm >= 6) y--;
+        st.year = y; pm = st.mon;
+      }
+      warns.push(`연도가 없어 ${top.st.wd >= 0 ? '요일로' : '올해 기준으로'} 추정 — 틀리면 연도 칸에 입력`);
+    }
+  }
+
+  const wallOf = d => d.k === 'i' ? d.wall : Date.UTC(d.year, d.mon, d.day, d.h, d.mi, d.s || 0);
+  const out = [];
+  for (const r of recs) {
+    const sPrec = r.st.s == null ? 59999 : 999;
+    const s = wallOf(r.st);
+    let e = null, ePrec = 119999;
+    if (r.en) {
+      if (r.en.k === 'c' && r.en.year == null) r.en.year = r.st.year;
+      e = wallOf(r.en); ePrec = r.en.s == null ? 59999 : 999;
+      if (e < s - 60000 && r.en.k === 'c') e = Date.UTC(r.en.year + 1, r.en.mon, r.en.day, r.en.h, r.en.mi, r.en.s || 0);
+    } else if (r.endTime) {
+      const base = new Date(s);
+      let c = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), r.endTime[0], r.endTime[1], r.endTime[2] || 0);
+      const approx = r.durMs != null ? s + r.durMs : s;
+      while (c < approx - 43200000) c += 86400000;       // 지속시간에 가장 가까운 날짜
+      while (c > approx + 43200000 && c - 86400000 >= s - 60000) c -= 86400000;
+      e = c; ePrec = r.endTime[2] == null ? 59999 : 999;
+    } else if ((r.endKind === 'crash' || r.endKind === 'down') && r.durMs != null) {
+      e = s + r.durMs; ePrec = sPrec + 59999;
+    }
+    out.push({ user: r.user, tty: r.tty, host: r.host, s, sHi: s + sPrec, e, eHi: e == null ? null : e + ePrec,
+      endKind: r.endKind, sec: r.st.s != null, raw: r.raw, src: r.src, line: r.line });
+  }
+  return { sessions: out, warns, notes };
+}
+
+/* ───────── wtmp 바이너리 파싱 (struct utmp, 384B) ───────── */
+function parseWtmp(buf, fname) {
+  const dv = new DataView(buf), n = Math.floor(buf.byteLength / 384), warns = [], out = [], open = new Map();
+  if (buf.byteLength % 384) warns.push(`${fname}: 크기가 384B 단위로 안 나뉨 — 손상/변조 의심`);
+  const dec = new TextDecoder('utf-8');
+  const str = (o, l) => { const u = new Uint8Array(buf, o, l); let k = u.indexOf(0); if (k < 0) k = l; return dec.decode(u.subarray(0, k)); };
+  const closeAll = (t, kind) => { for (const x of open.values()) { x.e = t; x.eHi = t + 999; x.endKind = kind; } open.clear(); };
+  let lastShutdown = false;
+  for (let i = 0; i < n; i++) {
+    const o = i * 384, type = dv.getInt16(o, true);
+    const line = str(o + 8, 32), user = str(o + 44, 32), host = str(o + 76, 256);
+    const t = dv.getInt32(o + 340, true) * 1000 + S.tz * 60000;
+    if (type === 7 && user) {
+      if (open.has(line)) { const p = open.get(line); p.endKind = 'gone'; }
+      const x = { user, tty: line, host, s: t, sHi: t + 999, e: null, eHi: null, endKind: 'still', sec: true,
+        raw: `${user}  ${line}  ${host}  (wtmp 레코드 #${i + 1})`, src: fname, line: i + 1 };
+      open.set(line, x); out.push(x);
+    } else if (type === 8) {
+      const p = open.get(line); if (p) { p.e = t; p.eHi = t + 999; p.endKind = 'logout'; open.delete(line); }
+    } else if (type === 1 && user === 'shutdown') { closeAll(t, 'down'); lastShutdown = true; }
+    else if (type === 2) { closeAll(t, lastShutdown ? 'down' : 'crash'); lastShutdown = false; }
+  }
+  return { sessions: out, warns, notes: [`wtmp 레코드 ${n}개`] };
+}
+
+async function readFile(file) {
+  let buf = await file.arrayBuffer();
+  let u = new Uint8Array(buf);
+  if (u[0] === 0x1f && u[1] === 0x8b) {
+    if (typeof DecompressionStream === 'undefined') return { name: file.name, err: 'gzip 을 풀 수 없는 브라우저입니다 — 압축을 풀어 넣으세요' };
+    buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    u = new Uint8Array(buf);
+  }
+  const probe = u.subarray(0, 4096); let zeros = 0; for (const b of probe) if (b === 0) zeros++;
+  const binary = probe.length && zeros / probe.length > 0.1;
+  const nm = file.name.toLowerCase();
+  if (binary) {
+    if (/lastlog/.test(nm)) return { name: file.name, err: 'lastlog 바이너리는 계정별 마지막 1회만 있어 쓸 수 없습니다 — wtmp 또는 last 출력을 넣으세요' };
+    if (/btmp/.test(nm)) return { name: file.name, err: 'btmp 는 실패 기록입니다 — wtmp 를 넣으세요' };
+    const ty = new DataView(buf).getInt16(0, true);
+    if (buf.byteLength >= 384 && ty >= 0 && ty <= 9) return { name: file.name, bin: buf };
+    return { name: file.name, err: '알 수 없는 바이너리 형식' };
+  }
+  return { name: file.name, text: new TextDecoder('utf-8').decode(buf) };
+}
+
+function rebuildSlot(sl) {
+  let all = [], warns = [], notes = [];
+  const take = r => { all = all.concat(r.sessions); warns = warns.concat(r.warns); notes = notes.concat(r.notes); };
+  for (const f of sl.files) {
+    if (f.err) { warns.push(`${f.name}: ${f.err}`); continue; }
+    take(f.bin ? parseWtmp(f.bin, f.name) : parseLastText(f.text, sl, f.name));
+  }
+  if (sl.paste.trim()) take(parseLastText(sl.paste, sl, '붙여넣기'));
+  const corr = (+sl.corr || 0) * 1000, seen = new Set(), uniq = [];
+  for (const x of all) {
+    const k = [x.s, x.user, x.tty, x.host].join('|');
+    if (seen.has(k)) continue; seen.add(k);
+    if (corr) { x.s += corr; x.sHi += corr; if (x.e != null) { x.e += corr; x.eHi += corr; } }
+    uniq.push(x);
+  }
+  uniq.sort((a, b) => a.s - b.s);
+  sl.sessions = uniq; sl.warns = warns; sl.notes = notes;
+}
+
+/* ───────── 분석 ───────── */
+let R = null;  // 분석 결과
+function hostMatch(h, ips) {
+  if (!h || !ips.length) return null;
+  return ips.some(x => x === h || (h.length >= 12 && x.startsWith(h)) || (x.length >= 12 && h.startsWith(x)));
+}
+function analyze() {
+  const tol = S.tol * 1000, N = S.slots.length;
+  const L = S.slots.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
+  const ips = S.slots.map(sl => sl.ip.split(/[\s,]+/).filter(Boolean));
+  const sugg = S.slots.map(() => new Map());
+  const end = x => x.eHi == null ? Infinity : x.eHi;
+  for (let k = 0; k < N - 1; k++) {
+    // 앞 서버 세션을 시작시각 순으로 두고, "hi 이하 위치 중 종료시각 ≥ x 인 가장 뒤 세션"을 O(log n) 으로 찾는다
+    const P = L[k].slice().sort((a, b) => a.s - b.s), starts = P.map(p => p.s), tree = maxTree(P.map(end));
+    for (const c of L[k + 1]) {
+      c.ipOk = hostMatch(c.host, ips[k]);
+      const cEndLo = c.e == null ? (c.endKind === 'gone' ? c.s : Infinity) : c.e;
+      const need = cEndLo - tol, cands = [];
+      let i = findLast(tree, upperBound(starts, c.sHi + tol) - 1, need);
+      while (i >= 0 && cands.length < MAX_CANDS) { cands.push(P[i]); i = findLast(tree, i - 1, need); }
+      if (!cands.length) continue;
+      c.candMore = i >= 0;
+      if (c.host) sugg[k].set(c.host, (sugg[k].get(c.host) || 0) + 1);
+      if (S.strict && ips[k].length && !c.ipOk) continue;
+      c.cands = cands; c.parent = cands[0]; cands[0].kids.push(c);   // 가장 늦게 시작한(촘촘한) 세션이 부모
+    }
+  }
+  // 체인 만들기
+  const chains = [];
+  for (const lvl of L) for (const r of lvl) {
+    if (r.parent || !r.kids.length) continue;
+    const ch = buildChain(r, tol);
+    chains.push(ch);
+  }
+  chains.sort((a, b) => b.depth - a.depth || b.score - a.score || a.root.s - b.root.s);
+  chains.forEach((c, i) => c.no = i + 1);
+  const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
+  R = { L, chains, sugg, byId, ips };
+}
+const MAX_CANDS = 20;
+function upperBound(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
+function maxTree(v) {
+  let size = 1; while (size < v.length) size <<= 1;
+  const t = new Float64Array(2 * size).fill(-Infinity);
+  for (let i = 0; i < v.length; i++) t[size + i] = v[i];
+  for (let i = size - 1; i > 0; i--) t[i] = Math.max(t[2 * i], t[2 * i + 1]);
+  return { size, t };
+}
+function findLast(T, hi, x) {      // 위치 ≤ hi 이면서 값 ≥ x 인 가장 큰 위치, 없으면 -1
+  if (hi < 0) return -1;
+  const go = (n, l, r) => {
+    if (l > hi || T.t[n] < x) return -1;
+    if (l === r) return l;
+    const m = (l + r) >> 1, res = go(2 * n + 1, m + 1, r);
+    return res >= 0 ? res : go(2 * n, l, m);
+  };
+  return go(1, 0, T.size - 1);
+}
+function buildChain(root, tol) {
+  const list = [], walk = x => { list.push(x); x.kids.sort((a, b) => a.s - b.s); x.kids.forEach(walk); };
+  walk(root);
+  for (let i = list.length - 1; i >= 0; i--) { const x = list[i]; x.sd = 0; for (const y of x.kids) x.sd = Math.max(x.sd, y.sd + 1); }
+  // 역할
+  for (const x of list) {
+    if (x === root) { x.role = 'start'; continue; }
+    const sib = x.parent.kids;
+    const before = sib.filter(y => y !== x && y.s < x.s && y.e != null && y.e <= x.sHi + tol);
+    if (x.kids.length) x.role = 'jump';
+    else if (before.length) x.role = 'fetch';
+    else if (!sib.some(y => y !== x && y.s < x.s)) x.role = 'target';
+    else x.role = 'other';
+  }
+  // 가장 깊은 경로와 역순 회수 패턴
+  const path = [root]; let cur = root;
+  while (cur.kids.length) {
+    const best = cur.kids.reduce((a, b) => b.sd > a.sd ? b : a);
+    path.push(best); cur = best;
+  }
+  const depth = path.length - 1;
+  const checks = [];
+  let fetches = [];
+  for (let k = depth; k >= 1; k--) {
+    const J = path[k], P = path[k - 1];
+    const f = J.e == null ? null : P.kids.find(y => y !== J && y.sHi >= J.e - tol);
+    fetches.push({ k, J, P, f });
+  }
+  let ordered = true, prev = -Infinity;
+  for (const x of fetches) { if (!x.f) continue; if (x.f.sHi < prev - tol) ordered = false; prev = x.f.s; }
+  const found = fetches.filter(x => x.f).length;
+  const pattern = depth >= 2 && found === depth && ordered;
+  const ipBad = list.filter(x => x.ipOk === false).length;
+  const ipGood = list.filter(x => x.ipOk === true).length;
+  let t0 = Infinity, t1 = root.e ?? 0;
+  for (const x of list) { t0 = Math.min(t0, x.s); t1 = Math.max(t1, x.e == null ? x.s : x.e); }
+  return { root, list, path, depth, fetches, found, ordered, pattern, ipBad, ipGood,
+    t0, t1,
+    open: list.some(x => x.e == null),
+    score: (pattern ? 100 : 0) + found * 10 + ipGood - ipBad * 5 };
+}
+
+/* 타임테이블 이벤트 */
+function events(ch) {
+  const nm = k => S.slots[k].name || NAMES[k];
+  const ev = [];
+  for (const x of ch.list) {
+    const X = nm(x.lv), P = x.lv > 0 ? nm(x.lv - 1) : '';
+    const pty = /^(pts|tty|vc|console|:)/.test(x.tty);
+    let txt;
+    if (x.role === 'start') txt = `<b>${esc(X)}</b> 로그인 — 출발 세션` + (x.host ? ` (출발지 ${esc(x.host)})` : '');
+    else if (x.role === 'jump') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (점프)`;
+    else if (x.role === 'target') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (최종 서버)`;
+    else if (x.role === 'fetch') txt = `<b>${esc(P)} → ${esc(X)}</b> 재접속 — <b style="color:var(--r-fetch)">파일 가져오기(sftp) 추정</b>` + (pty ? ' <span class="hint">· tty 가 pty 라 ssh 재접속일 수도</span>' : '');
+    else txt = `<b>${esc(P)} → ${esc(X)}</b> 접속 <span class="hint">· 다른 세션이 열려 있는 동안 생긴 별도 접속</span>`;
+    ev.push({ t: x.s, kind: 0, x, txt });
+    if (x.e != null) {
+      let o;
+      if (x.role === 'start') o = `<b>${esc(X)}</b> 로그아웃 — 작업 종료`;
+      else if (x.role === 'fetch') o = `${esc(P)} ↔ ${esc(X)} sftp 세션 종료 <span class="hint">(${fDur(x.e - x.s, x.sec)})</span>`;
+      else if (x.role === 'other') o = `${esc(P)} → ${esc(X)} 별도 접속 종료 <span class="hint">(${fDur(x.e - x.s, x.sec)})</span>`;
+      else o = `<b>${esc(X)}</b> 에서 exit → <b>${esc(P)}</b> 로 복귀 <span class="hint">(머문 시간 ${fDur(x.e - x.s, x.sec)})</span>`;
+      if (x.endKind === 'crash' || x.endKind === 'down') o += ` <span class="bd warn">${x.endKind}</span>`;
+      ev.push({ t: x.e, kind: 1, x, txt: o });
+    } else {
+      ev.push({ t: null, kind: 2, x, txt: `<b>${esc(X)}</b> 세션 ${x.endKind === 'gone' ? '로그아웃 기록 없음 (gone - no logout)' : '아직 접속 중 (still logged in)'}` });
+    }
+  }
+  ev.sort((a, b) => {
+    if (a.t == null || b.t == null) return (a.t == null) - (b.t == null);
+    if (a.t !== b.t) return a.t - b.t;
+    if (a.x === b.x) return a.kind - b.kind;
+    if (a.kind !== b.kind) return b.kind - a.kind;              // 같은 시각이면 로그아웃 먼저
+    return a.kind === 1 ? b.x.lv - a.x.lv : a.x.lv - b.x.lv;   // 로그아웃은 깊은 서버부터, 로그인은 얕은 서버부터
+  });
+  return ev;
+}
+
+/* ───────── 렌더: 슬롯 ───────── */
+function renderSlots() {
+  const box = $('#slots'); box.innerHTML = '';
+  S.slots.forEach((sl, k) => {
+    if (k) { const a = document.createElement('div'); a.className = 'arrow'; a.textContent = '→'; box.appendChild(a); }
+    const d = document.createElement('div'); d.className = 'slot'; d.dataset.k = k;
+    d.innerHTML = `
+      <div class="sh"><span class="lvn">${k + 1}</span><input type="text" class="nm" value="${esc(sl.name)}" title="서버 이름">
+        ${S.slots.length > 2 ? '<button class="xbtn" data-act="del" title="이 서버 칸 삭제">×</button>' : ''}</div>
+      <label>이 서버 IP·호스트명 <span class="hint">(선택, 다음 서버의 출발지와 비교)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.0.0.5, web01"></label>
+      <div class="row2">
+        <label>연도 <input type="text" class="yr" value="${esc(sl.year)}" placeholder="자동"></label>
+        <label>시간 보정(초) <input type="number" class="corr" value="${esc(sl.corr)}" step="1"></label>
+      </div>
+      <div class="drop">파일을 여기로 끌어다 놓기 · <a data-act="pick">파일 선택</a><input type="file" multiple hidden></div>
+      <div class="chips">${sl.files.map((f, i) => `<span class="chip" title="${esc(f.err || f.name)}"><span${f.err ? ' style="color:var(--bad)"' : ''}>${esc(f.name)}</span><button class="xbtn" data-act="rmf" data-i="${i}">×</button></span>`).join('')}</div>
+      <textarea class="paste" placeholder="또는 last 출력 붙여넣기&#10;root  pts/0  10.0.0.5  Sat Oct  3 09:05 - 11:20  (02:14)">${esc(sl.paste)}</textarea>
+      <div class="info" id="info${k}"></div>`;
+    box.appendChild(d);
+    const fin = d.querySelector('input[type=file]');
+    d.addEventListener('click', e => {
+      const a = e.target.closest('[data-act]'); if (!a) return;
+      if (a.dataset.act === 'pick') fin.click();
+      if (a.dataset.act === 'del') { S.slots.splice(k, 1); renderSlots(); run(); }
+      if (a.dataset.act === 'rmf') { sl.files.splice(+a.dataset.i, 1); rebuildSlot(sl); renderSlots(); run(); }
+    });
+    fin.addEventListener('change', () => addFiles(sl, fin.files));
+    d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drag'); });
+    d.addEventListener('dragleave', () => d.classList.remove('drag'));
+    d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('drag'); addFiles(sl, e.dataTransfer.files); });
+    const on = (sel, f, ev = 'input') => d.querySelector(sel).addEventListener(ev, e => { f(e.target.value); schedule(sl); });
+    on('.nm', v => sl.name = v);
+    on('.ip', v => sl.ip = v);
+    on('.yr', v => { sl.year = v; sl.dirty = true; });
+    on('.corr', v => { sl.corr = v; sl.dirty = true; });
+    on('.paste', v => { sl.paste = v; sl.dirty = true; });
+  });
+  const add = document.createElement('div'); add.className = 'addcol';
+  add.innerHTML = `<button class="btn" id="addSlot">+ 서버 추가</button>`;
+  box.appendChild(add);
+  add.querySelector('button').onclick = () => { if (S.slots.length < 8) { S.slots.push(newSlot(NAMES[S.slots.length])); renderSlots(); run(); } };
+  renderInfo();
+}
+function renderFold() {
+  const sum = $('#insum'), box = $('#slots');
+  box.hidden = S.fold; sum.hidden = !S.fold; $('#fold').textContent = S.fold ? '펼치기' : '접기';
+  if (!S.fold) return;
+  sum.innerHTML = S.slots.map((sl, k) => `<span>${k ? '→ ' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
+    + `<a style="margin-left:auto" id="unfold">로그 추가·수정</a>`;
+  $('#unfold').onclick = () => { S.fold = false; renderFold(); };
+}
+function renderInfo() {
+  S.slots.forEach((sl, k) => {
+    const el = document.getElementById('info' + k); if (!el) return;
+    const ss = sl.sessions; let h = '';
+    if (ss.length) {
+      const sec = ss.some(x => x.sec);
+      h += `세션 <b>${ss.length}</b>개 · ${fDT(ss[0].s)} ~ ${fDT(ss[ss.length - 1].s)}${sec ? '' : ' · <span class="w">분 단위</span>'}<br>`;
+    } else if (sl.files.length || sl.paste.trim()) h += '<span class="w">읽은 세션 없음</span><br>';
+    else h += '<span class="dim">비어 있음</span><br>';
+    h += sl.notes.map(n => `<span class="dim">${esc(n)}</span><br>`).join('');
+    h += sl.warns.map(n => `<span class="w">⚠ ${esc(n)}</span><br>`).join('');
+    if (R && k < S.slots.length - 1 && R.sugg[k].size) {
+      const top = [...R.sugg[k]].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      h += `<span class="sg">${esc(S.slots[k + 1].name)} 에 찍힌 출발지(시간 일치): ${top.map(([ip, n]) => `<a data-ip="${esc(ip)}" title="이 서버 IP 칸에 넣기">${esc(ip)}</a> ×${n}`).join(', ')}</span>`;
+    }
+    el.innerHTML = h;
+    el.querySelectorAll('[data-ip]').forEach(a => a.onclick = () => {
+      const ip = a.dataset.ip, cur = sl.ip.split(/[\s,]+/).filter(Boolean);
+      if (!cur.includes(ip)) { cur.push(ip); sl.ip = cur.join(', '); el.closest('.slot').querySelector('.ip').value = sl.ip; run(); }
+    });
+  });
+}
+async function addFiles(sl, files) {
+  for (const f of files) sl.files.push(await readFile(f));
+  rebuildSlot(sl); renderSlots(); run();
+}
+let timer = null;
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(() => { for (const sl of S.slots) if (sl.dirty) { rebuildSlot(sl); sl.dirty = false; } run(); }, 250);
+}
+
+/* ───────── 렌더: 체인 목록 ───────── */
+function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderAll(); }
+const nm = k => esc(S.slots[k]?.name || NAMES[k]);
+const candN = x => x.cands.length + (x.candMore ? '+' : '');
+// 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
+const CAP_CHAINS = 120, CAP_EVENTS = 1500, CAP_ROWS = 1000;
+function chainPath(ch) { const a = []; for (let k = ch.root.lv; k <= ch.root.lv + ch.depth; k++) a.push(nm(k)); return a.join(' → '); }
+const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치']];
+function isFull(ch) { return ch.root.lv === 0 && ch.depth === S.slots.length - 1; }
+function filteredChains() {
+  const q = S.cq.trim().toLowerCase();
+  return R.chains.filter(ch => {
+    if (S.cf === 'full' && !isFull(ch)) return false;
+    if (S.cf === 'pattern' && !ch.pattern) return false;
+    if (!q) return true;
+    if (fDT(ch.t0).includes(q)) return true;
+    return ch.list.some(x => (x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q));
+  });
+}
+function renderChains() {
+  const box = $('#chains'), seg = $('#cf');
+  const cnt = { all: R.chains.length, full: R.chains.filter(isFull).length, pattern: R.chains.filter(c => c.pattern).length };
+  seg.innerHTML = CF.map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => { S.cf = b.dataset.k; renderChains(); });
+  const list = filteredChains();
+  S.shown = list.slice(0, CAP_CHAINS);
+  if (!R.chains.length) {
+    const have = S.slots.filter(s => s.sessions.length).length;
+    box.innerHTML = `<div class="empty">${have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
+    $('#clfoot').textContent = ''; S.sel = null; return;
+  }
+  if (!R.chains.some(c => c.root.id === S.sel)) S.sel = (S.shown[0] || R.chains[0]).root.id;
+  box.innerHTML = S.shown.length ? S.shown.map(ch => {
+    const r = ch.root;
+    const pat = ch.pattern ? '<span class="bd ok" title="점프 후 역순 회수 패턴과 일치">역순 ✓</span>'
+      : ch.found ? `<span class="bd warn" title="회수(재접속) ${ch.found}/${ch.depth}${ch.ordered ? '' : ' · 순서 다름'}">회수 ${ch.found}/${ch.depth}</span>` : '';
+    const ip = ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '';
+    const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
+    return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
+      <div class="l1"><span class="no">#${ch.no}</span><span>${fD(ch.t0).slice(5)} ${fT(ch.t0)} ~ ${end}</span><span class="bds">${pat}${ip}</span></div>
+      <div class="l2">${chainPath(ch).replace(/ → /g, '→')} · ${esc(r.user)}${r.host ? '←' + esc(r.host) : ''} · 세션 ${ch.list.length}</div></div>`;
+  }).join('') : '<div class="empty">조건에 맞는 체인이 없습니다.</div>';
+  $('#clfoot').textContent = list.length > S.shown.length ? `${list.length}개 중 ${S.shown.length}개 표시 — 검색으로 좁히세요` : `${list.length}개`;
+  box.querySelectorAll('.ci').forEach(c => c.onclick = () => select(c.dataset.id));
+}
+function select(id) {
+  S.sel = id;
+  document.querySelectorAll('#chains .ci').forEach(c => c.classList.toggle('on', c.dataset.id === id));
+  const on = document.querySelector('#chains .ci.on');
+  if (on) on.scrollIntoView({ block: 'nearest' });
+  renderDetail(); renderAll();
+}
+
+/* ───────── 렌더: 상세(간트 + 패턴 + 타임테이블) ───────── */
+function renderDetail() {
+  const box = $('#detail');
+  const ch = R.chains.find(c => c.root.id === S.sel);
+  if (!ch) { box.innerHTML = '<div class="empty">왼쪽에서 체인을 고르면 그래프와 시간 순서표가 나옵니다.</div>'; return; }
+  const ev = events(ch);
+  const verdict = ch.pattern ? '<span class="bd ok">점프 후 역순 회수 패턴 일치</span>' : ch.found ? '<span class="bd warn">부분 일치</span>' : '<span class="bd">점프만 확인</span>';
+  box.innerHTML = `
+    <div class="dhead">
+      <div class="dt"><span class="ttl">#${ch.no} ${chainPath(ch)}</span>${verdict}
+        <span class="dim">${fDT(ch.t0, ch.root.sec)} ~ ${ch.open ? '접속 중' : fT(ch.t1, ch.root.sec)}${ch.open ? '' : ' · ' + fDur(ch.t1 - ch.t0)}</span>
+        <span style="flex:1"></span><button class="btn" id="copyTsv">표 복사</button><button class="btn" id="csv">CSV 저장</button></div>
+      <div class="steps">${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
+    </div>
+    <div class="gwrap" id="gantt"></div>
+    <div class="legend">${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
+    <div class="dtable"><table>
+      <thead><tr><th></th><th>#</th><th>시각</th><th>출발 후</th><th>간격</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead>
+      <tbody>${ev.slice(0, CAP_EVENTS).map((e, i) => {
+        const x = e.x, prev = i && ev[i - 1].t != null && e.t != null ? e.t - ev[i - 1].t : null;
+        return `<tr class="${e.kind ? 'out' : ''}" data-sid="${x.id}"${e.kind ? '' : ` id="ev-${x.id}"`}>
+          <td class="rc"><div style="background:${ROLE[x.role].c};opacity:${e.kind ? .35 : 1}"></div></td>
+          <td class="dim">${i + 1}</td>
+          <td class="tm">${e.t == null ? '-' : fDT(e.t, x.sec)}</td>
+          <td class="tm dim">${e.t == null ? '' : '+' + fDur(e.t - ch.t0, x.sec)}</td>
+          <td class="tm dim">${prev == null ? '' : fDur(prev, x.sec)}</td>
+          <td><span class="sv">${nm(x.lv)}</span></td>
+          <td class="act">${e.txt}</td>
+          <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${x.ipOk === false ? ' <span class="bd bad">IP 불일치</span>' : x.ipOk ? ' <span class="bd ok">IP</span>' : ''}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
+          <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`;
+      }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
+  drawGantt(ch);
+  // 그래프 ↔ 순서표 연동
+  const hl = (sid, on) => box.querySelectorAll(`[data-sid="${sid}"]`).forEach(el => el.classList.toggle('hl', on));
+  box.onmouseover = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, true); };
+  box.onmouseout = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, false); };
+  box.querySelector('#gantt').onclick = e => {
+    const t = e.target.closest('[data-sid]'), row = t && document.getElementById('ev-' + t.dataset.sid);
+    if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
+  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), S.slots[e.x.lv].name, e.txt.replace(/<[^>]+>/g, ''), e.x.user, e.x.tty, e.x.host, e.x.raw]));
+  $('#copyTsv').onclick = () => { navigator.clipboard.writeText(rows().map(r => r.join('\t')).join('\n')); $('#copyTsv').textContent = '복사됨'; };
+  $('#csv').onclick = () => {
+    const csv = '﻿' + rows().map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `hop_timeline_${fD(ch.t0)}_${ch.no}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+}
+function steps(ch) {
+  const out = [], p = ch.path, sn = x => S.slots[x.lv].name;
+  for (let k = 1; k < p.length; k++)
+    out.push({ cls: 'ok', ic: '✓', t: `${sn(p[k - 1])}→${sn(p[k])}`,
+      tip: `${sn(p[k - 1])} 세션 안에서 ${sn(p[k])} 로 접속\n${fT(p[k].s, p[k].sec)} ~ ${p[k].e == null ? '…' : fT(p[k].e, p[k].sec)} (${p[k].user}, ${p[k].tty})` });
+  for (const f of ch.fetches) {
+    const a = sn(f.J), b = sn(f.P);
+    if (f.f) out.push({ cls: 'ok', ic: '✓', t: `${b}←${a} 회수 (exit 후 +${fDur(f.f.s - f.J.e, f.f.sec)})`,
+      tip: `${a} 에서 exit(${fT(f.J.e, f.J.sec)}) 후 ${b} → ${a} 재접속(${fT(f.f.s, f.f.sec)}) · tty ${f.f.tty || '-'}` });
+    else out.push({ cls: 'no', ic: '✕', t: `${b}←${a} 회수 없음`,
+      tip: f.J.e == null ? `${a} 세션 종료 기록 없음` : `${b} 세션이 끝날 때까지 ${a} 에 다시 들어간 기록 없음 — sftp 가 wtmp 에 안 남았을 수 있음` });
+  }
+  if (ch.depth >= 2 && ch.found >= 2) out.push({ cls: ch.ordered ? 'ok' : 'mid', ic: ch.ordered ? '✓' : '!', t: ch.ordered ? '역순' : '순서 다름', tip: ch.ordered ? '회수 순서가 깊은 서버부터 (역순)' : '회수 순서가 역순이 아님' });
+  return out;
+}
+function drawGantt(ch) {
+  const box = document.getElementById('gantt');
+  if (!box) return;
+  const lv0 = ch.root.lv, nL = ch.depth + 1;
+  const W = Math.max(520, box.clientWidth - 26), LW = 84, RP = 14, LH = nL > 5 ? 28 : 34, TOP = 20, H = TOP + nL * LH + 4;
+  const t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0);
+  const pad0 = (t1 - t0) * 0.02, a = t0 - pad0, b = t1 + pad0;
+  const X = t => LW + (t - a) / (b - a) * (W - LW - RP);
+  const yL = lv => TOP + (lv - lv0) * LH;
+  let g = '';
+  const stepsMs = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440, 2880, 10080].map(m => m * 60000);
+  const step = stepsMs.find(s => (b - a) / s <= Math.max(4, W / 110)) || stepsMs[stepsMs.length - 1];
+  for (let t = Math.ceil(a / step) * step; t <= b; t += step) {
+    const x = X(t);
+    g += `<line x1="${x}" x2="${x}" y1="${TOP - 4}" y2="${H - 2}" stroke="var(--line2)"/><text x="${x}" y="${TOP - 7}" text-anchor="middle">${step >= 86400000 ? fD(t).slice(5) : fT(t)}</text>`;
+  }
+  for (let k = 0; k < nL; k++) {
+    const y = yL(lv0 + k), ip = S.slots[lv0 + k].ip.split(/[\s,]+/)[0];
+    g += `<line x1="0" x2="${W}" y1="${y + LH - 1}" y2="${y + LH - 1}" stroke="var(--line2)"/>`;
+    g += `<text x="6" y="${y + LH / 2 + (ip ? -1 : 4)}" class="ln">${nm(lv0 + k)}</text>`;
+    if (ip) g += `<text x="6" y="${y + LH / 2 + 11}" style="font-size:9.5px">${esc(ip)}</text>`;
+  }
+  const BH = LH - 14, BY = lv => yL(lv) + 7;
+  for (const x of ch.list) {
+    const x1 = X(x.s), x2 = Math.max(x1 + 3, X(x.e == null ? t1 : x.e)), y = BY(x.lv), c = ROLE[x.role].c;
+    const tip = `${S.slots[x.lv].name} ${ROLE[x.role].t}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}\n${x.user} ${x.tty} ${x.host}`;
+    if (x.parent) {
+      const py = BY(x.parent.lv) + BH;
+      g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
+      if (x.e != null && x.role !== 'fetch') g += `<line x1="${x2}" x2="${x2}" y1="${y}" y2="${py}" stroke="var(--faint)" stroke-dasharray="3 3"/>`;
+    }
+    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${x2 - x1}" height="${BH}" rx="4" fill="${c}" fill-opacity="${x.role === 'other' ? .45 : .9}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
+    if (x2 - x1 > 42) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
+    if (x2 - x1 > 96 && x.e != null) g += `<text x="${x2 - 4}" y="${y + BH / 2 + 4}" text-anchor="end" style="fill:#fff;pointer-events:none">${fT(x.e)}</text>`;
+    g += '</g>';
+  }
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
+}
+
+/* ───────── 렌더: 서버별 전체 세션 ───────── */
+function renderAll() {
+  const box = $('#all'), N = S.slots.length;
+  if (S.tab >= N) S.tab = 0;
+  const L = R.L[S.tab] || [], q = S.q.toLowerCase();
+  const sel = R.chains.find(c => c.root.id === S.sel), inSel = new Set(sel ? sel.list.map(x => x.id) : []);
+  const rows = L.filter(x => (!S.onlyMatched || x.parent || x.kids.length) && (!q || (x.raw + ' ' + x.user + ' ' + x.host).toLowerCase().includes(q)));
+  box.innerHTML = `
+    <div class="tabs">${S.slots.map((sl, k) => `<button data-k="${k}" class="${k === S.tab ? 'on' : ''}">${esc(sl.name)}<span class="n">${R.L[k].length}</span></button>`).join('')}</div>
+    <div class="tbar"><input type="text" id="q" placeholder="검색 (계정·IP·tty)" value="${esc(S.q)}" style="width:220px">
+      <label class="ctl"><input type="checkbox" id="om"${S.onlyMatched ? ' checked' : ''}> 연결된 세션만</label>
+      <span class="spacer"></span><span class="hint">${rows.length} / ${L.length}개 · 파란 행 = 지금 고른 체인</span></div>
+    <div class="scroll"><table><thead><tr><th>로그인</th><th>로그아웃</th><th>지속</th><th>계정</th><th>tty</th><th>출발지</th><th>앞 서버(${S.tab ? nm(S.tab - 1) : '-'}) 세션</th><th>다음 서버(${S.tab < N - 1 ? nm(S.tab + 1) : '-'}) 접속</th><th>원문</th></tr></thead>
+    <tbody>${rows.length ? rows.slice(0, CAP_ROWS).map(x => `<tr class="clk${inSel.has(x.id) ? ' selrow' : ''}${x.parent || x.kids.length ? '' : ' out'}" data-id="${x.id}">
+      <td class="tm">${fDT(x.s, x.sec)}</td>
+      <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : fDT(x.e, x.sec).slice(fD(x.e) === fD(x.s) ? 11 : 0)}</td>
+      <td class="tm dim">${x.e == null ? '' : fDur(x.e - x.s, x.sec)}</td>
+      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td>
+      <td class="mono">${esc(x.host)}${x.ipOk === false ? ' <span class="bd bad">불일치</span>' : ''}</td>
+      <td class="tm">${x.parent ? `${fT(x.parent.s, x.parent.sec)}~${x.parent.e == null ? '' : fT(x.parent.e, x.parent.sec)}${x.cands.length > 1 ? ` <span class="bd warn">후보 ${candN(x)}</span>` : ''}` : S.tab ? '<span class="dim">없음</span>' : ''}</td>
+      <td>${x.kids.length ? `<span class="bd acc">${x.kids.length}건</span>` : ''}</td>
+      <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`).join('') : '<tr><td colspan="9" class="empty">세션 없음</td></tr>'}${rows.length > CAP_ROWS ? `<tr><td colspan="9" class="empty">${rows.length}개 중 ${CAP_ROWS}개만 표시 — 검색으로 좁혀 보세요</td></tr>` : ''}</tbody></table></div>`;
+  box.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { S.tab = +b.dataset.k; renderAll(); });
+  const qi = box.querySelector('#q');
+  qi.oninput = () => { S.q = qi.value; renderAll(); const n = $('#q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  box.querySelector('#om').onchange = e => { S.onlyMatched = e.target.checked; renderAll(); };
+  box.querySelectorAll('tr.clk').forEach(tr => tr.onclick = () => {
+    const ch = R.byId.get(tr.dataset.id); if (!ch) return;
+    if (!S.shown.includes(ch)) { S.cf = 'all'; S.cq = ''; $('#cq').value = ''; S.sel = ch.root.id; renderChains(); }
+    select(ch.root.id);
+    $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/* ───────── 예시 데이터 ───────── */
+function sampleData() {
+  const Y = 2026, T = (d, h, m, s = 0) => Date.UTC(Y, 9, d, h, m, s);
+  const ct = (t, sec, yr) => { const d = new Date(t); return `${WD[d.getUTCDay()]} ${MONS[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2)} ${fT(t, sec)}${yr ? ' ' + d.getUTCFullYear() : ''}`; };
+  const dur = (s, e) => { const m = Math.floor((e - s) / 60000), d = Math.floor(m / 1440); return `(${d ? d + '+' : ''}${pad(Math.floor(m % 1440 / 60))}:${pad(m % 60)})`; };
+  const fmt = (rows, full, host) => rows.sort((a, b) => b[3] - a[3]).map(([u, tty, h, s, e]) => {
+    const head = `${u.padEnd(8)} ${tty.padEnd(12)} ${h.padEnd(16)} `;
+    if (u === 'reboot') return `reboot   system boot  6.8.0-45-generic ${ct(s, full, full)}   still running`;
+    if (e == null) return head + ct(s, full, full) + '   still logged in';
+    return head + ct(s, full, full) + ' - ' + (full ? ct(e, 1, 1) : fT(e)) + '  ' + dur(s, e);
+  }).join('\n') + `\n\nwtmp begins ${ct(T(1, 0, 0, 1), 1, 1)}\n`;
+  const srv = [
+    { name: 'A', ip: '10.10.1.10', full: true, rows: [
+      ['ops', 'pts/1', '172.16.5.20', T(3, 9, 2, 11), T(3, 11, 48, 40)],
+      ['ops', 'pts/0', '172.16.5.20', T(3, 8, 40, 3), T(3, 8, 55, 17)],
+      ['kim', 'pts/2', '172.16.5.31', T(3, 10, 15, 44), T(3, 10, 52, 9)],
+      ['ops', 'pts/1', '172.16.5.20', T(2, 14, 10, 0), T(2, 15, 30, 12)],
+      ['admin', 'pts/3', '172.16.5.9', T(1, 18, 0, 25), null],
+      ['reboot', '', '', T(1, 7, 55, 2)]] },
+    { name: 'B', ip: '10.10.2.20', rows: [
+      ['deploy', 'pts/0', '10.10.1.10', T(3, 9, 5, 30), T(3, 11, 20, 5)],
+      ['deploy', 'notty', '10.10.1.10', T(3, 11, 22, 10), T(3, 11, 24, 55)],
+      ['svc', 'pts/1', '10.10.8.8', T(3, 8, 0, 0), T(3, 12, 30, 0)],
+      ['deploy', 'pts/0', '10.10.1.10', T(2, 14, 12, 40), T(2, 15, 21, 0)],
+      ['deploy', 'notty', '10.10.1.10', T(2, 15, 23, 10), T(2, 15, 25, 0)],
+      ['backup', 'pts/2', '10.10.1.10', T(4, 3, 0, 0), T(4, 3, 4, 0)]] },
+    { name: 'C', ip: '10.10.3.30', rows: [
+      ['dba', 'pts/0', '10.10.2.20', T(3, 9, 10, 2), T(3, 10, 58, 40)],
+      ['dba', 'notty', '10.10.2.20', T(3, 11, 1, 15), T(3, 11, 3, 50)],
+      ['dba', 'pts/2', '10.10.9.9', T(3, 9, 40, 0), T(3, 9, 44, 30)],
+      ['dba', 'pts/0', '10.10.2.20', T(2, 14, 20, 11), T(2, 15, 5, 33)],
+      ['dba', 'notty', '10.10.2.20', T(2, 15, 8, 0), T(2, 15, 9, 30)]] },
+    { name: 'D', ip: '10.10.4.40', rows: [
+      ['root', 'pts/0', '10.10.3.30', T(3, 9, 15, 20), T(3, 10, 30, 12)],
+      ['root', 'notty', '10.10.3.30', T(3, 10, 33, 40), T(3, 10, 36, 2)],
+      ['backup', 'pts/1', '10.10.5.5', T(3, 2, 0, 0), T(3, 2, 10, 0)]] },
+  ];
+  S.slots = srv.map(s => Object.assign(newSlot(s.name), { paste: fmt(s.rows, s.full) }));
+  S.slots.forEach(rebuildSlot);
+  S.sel = null; S.fold = true; renderSlots(); run();
+  $('#ws').scrollIntoView({ block: 'start' });
+}
+
+/* ───────── 시작 ───────── */
+(function init() {
+  try { const th = localStorage.getItem('hop_theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
+  $('#theme').onclick = () => {
+    const r = document.documentElement, th = r.dataset.theme === 'light' ? 'dark' : 'light';
+    r.dataset.theme = th; try { localStorage.setItem('hop_theme', th); } catch (e) {}
+  };
+  $('#tol').oninput = e => { S.tol = Math.max(0, +e.target.value || 0); run(); };
+  $('#tz').onchange = e => { S.tz = parseTz(e.target.value); S.slots.forEach(rebuildSlot); run(); };
+  $('#strict').onchange = e => { S.strict = e.target.checked; run(); };
+  $('#sample').onclick = sampleData;
+  $('#fold').onclick = () => { S.fold = !S.fold; renderFold(); };
+  $('#toWs').onclick = () => $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#cq').oninput = e => { S.cq = e.target.value; renderChains(); };
+  const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
+  setHH(); window.addEventListener('resize', setHH);
+  document.addEventListener('keydown', e => {
+    if ((e.target.closest && e.target.closest('input,textarea,select')) || e.ctrlKey || e.metaKey || e.altKey) return;
+    const d = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
+    if (!d || !S.shown.length) return;
+    e.preventDefault();
+    const i = S.shown.findIndex(c => c.root.id === S.sel);
+    const n = S.shown[Math.min(S.shown.length - 1, Math.max(0, i + d))];
+    if (n && n.root.id !== S.sel) select(n.root.id);
+  });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) drawGantt(ch); }, 150); });
+  S.slots = [0, 1, 2, 3].map(k => newSlot(NAMES[k]));
+  renderSlots(); run();
+})();
+</script>
+</body>
+</html>
