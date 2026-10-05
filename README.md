@@ -60,6 +60,21 @@ last -F -i -f /var/log/wtmp > $(hostname)_last.txt
 
 `/var/log/lastlog` 는 계정별 마지막 1회 로그인만 있어 쓸 수 없습니다. `btmp` 는 실패 기록이라 대상이 아닙니다.
 
+### 윈도우 서버가 끼어 있을 때 (예: A 리눅스 → B 윈도우 → C 리눅스)
+
+윈도우에는 wtmp 대신 보안 이벤트 로그(4624 로그온 / 4634·4647 로그오프)가 있습니다.
+`win_logons_to_last.ps1` 이 둘을 로그온 ID 로 짝지어 **last 형식(시간대 포함 ISO 날짜)** 으로 바꿔 주므로,
+결과 파일을 B 칸에 그대로 넣으면 리눅스 서버와 똑같이 분석됩니다. tty 자리에는 로그온 종류(`type10` = RDP)가 들어갑니다.
+
+```powershell
+# 그 윈도우 서버에서 (관리자 PowerShell)
+powershell -ExecutionPolicy Bypass -File .\win_logons_to_last.ps1 -Out B_last.txt
+# 수집해 온 Security.evtx 를 분석 PC 에서 읽을 때
+powershell -ExecutionPolicy Bypass -File .\win_logons_to_last.ps1 -Path .\Security.evtx -Out B_last.txt
+# SSH(OpenSSH 서버)·sftp 로 들어온 로그온도 포함하려면 종류 3, 8 추가 (네트워크 로그온이 많아 잡음이 늘어남)
+powershell -ExecutionPolicy Bypass -File .\win_logons_to_last.ps1 -Path .\Security.evtx -LogonTypes 2,3,8,10,11
+```
+
 ## 옵션
 
 - **갈라지는 경로 (앞 서버)**: 서버 칸마다 `앞 서버` 를 고를 수 있습니다. 기본값 `자동` 은 바로 왼쪽 칸이라
