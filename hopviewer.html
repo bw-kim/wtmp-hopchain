@@ -218,6 +218,8 @@ tr.selrow td{background:var(--accent-bg)}
     <aside class="panel">
       <div class="clbar">
         <div class="nodes" id="nodes"></div>
+        <input type="text" id="org" placeholder="출발 IP 필터 (A 에 접속한 공격자 IP)" title="출발 서버에 접속한 IP. 여러 개, 45.133.1.0/24, 91.240.* 가능">
+        <div class="hint" id="orgInfo"></div>
         <div class="seg" id="cf"></div>
         <div class="hint">첫 서버 로그인 시각 순 (오래된 것부터)</div>
         <input type="text" id="cq" placeholder="검색: 날짜(10-03)·IP·계정">
@@ -238,6 +240,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>출발 IP</b>: 출발 서버(A) 칸이나 작업 화면 왼쪽 위에 A 에 접속한 공격자 IP 를 넣으면, 그 IP 에서 들어온 A 로그인만 남기고 거기서부터 B·C·D 로 이어 갑니다. 다른 사람이 A 에서 B 로 간 접속은 체인에 붙지 않습니다.<br>
     · <b>갈라지는 경로</b>: 서버 칸의 <b>앞 서버</b>를 고르면 A→B→C→D 와 C→C' 처럼 한 서버에서 여러 서버로 갈라지는 구조도 분석합니다. 기본값 "자동" 은 바로 왼쪽 칸입니다.<br>
     · 서버마다 시계가 다르면 각 칸의 <b>시간 보정(초)</b>에 더할 값을 넣으세요(예: B 시계가 90초 빠르면 -90). 연도 없는 last 출력은 <code>wtmp begins</code> 줄 → 요일 순으로 연도를 추정하며, 연도 칸에 직접 적을 수도 있습니다.<br>
     · <code>/var/log/lastlog</code> 는 계정별 마지막 1회만 있어 이 분석에 쓸 수 없습니다. <code>last -F -i -f /var/log/wtmp</code> 출력이나 <code>wtmp</code>(·<code>wtmp.1</code>) 파일을 넣으세요.
@@ -262,7 +265,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
 let SLOT_UID = 0;
-const newSlot = name => ({ uid: ++SLOT_UID, from: 'auto', name, ip: '', inDst: '', inSrc: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
+const newSlot = name => ({ uid: ++SLOT_UID, from: 'auto', name, origin: '', ip: '', inDst: '', inSrc: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
 
 /* ───────── 시간 표시 (모든 시각은 '표시 시간대 벽시계' ms 를 UTC 필드로 저장) ───────── */
 const fD = t => { const d = new Date(t); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
@@ -501,12 +504,36 @@ function hostMatch(h, addrs) {      // 맞으면 종류(문자열), 안 맞으�
 const ipBadge = (x, short) => typeof x.ipOk === 'string'
   ? ` <span class="bd ok" title="출발지가 ${esc(x.ipOk)} 주소와 일치">IP✓${short ? '' : ' ' + esc(x.ipOk)}</span>`
   : x.ipOk === false ? ` <span class="bd bad" title="기대한 주소: ${esc((R.addrs[x.lv] || []).map(a => a.ip + '(' + a.kind + ')').join(', '))}">IP 불일치</span>` : '';
+const ipv4n = v => { const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(v); return m ? ((+m[1] << 24) >>> 0) + (+m[2] << 16) + (+m[3] << 8) + +m[4] : null; };
+function originMatch(h, pats) {
+  if (!h) return false;
+  return pats.some(p => {
+    if (p.endsWith('*')) return h.startsWith(p.slice(0, -1));
+    const c = /^(.+)\/(\d+)$/.exec(p);
+    if (c) {
+      const a = ipv4n(c[1]), b = ipv4n(h), n = Math.min(32, +c[2]);
+      if (a == null || b == null) return false;
+      const mask = n === 0 ? 0 : (0xffffffff << (32 - n)) >>> 0;
+      return ((a & mask) >>> 0) === ((b & mask) >>> 0);
+    }
+    return hostMatch(h, [{ ip: p, kind: 'x' }]) === 'x';
+  });
+}
+// 출발 IP 를 넣을 칸: 켜진 서버 중 앞 서버가 없는 첫 칸 (보통 A)
+const originSlot = () => S.slots.find(sl => !sl.off && !activeParent(sl)) || null;
 function analyze() {
   AS = S.slots.filter(sl => !sl.off);
   const tol = S.tol * 1000, N = AS.length;
   const PL = AS.map(sl => { const p = activeParent(sl); return p ? AS.indexOf(p) : -1; });   // 켜진 서버 위치 기준 앞 서버
   const L = AS.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
-  const addrs = AS.map((sl, j) => PL[j] >= 0 ? hopAddrs(AS[PL[j]], sl) : []);
+  const addrs = AS.map((sl, j) => PL[j] >= 0 ? hopAddrs(AS[PL[j]], sl) : splitIps(sl.origin).map(ip => ({ ip, kind: '출발IP' })));
+  const origin = AS.map((sl, j) => {
+    const pats = PL[j] < 0 ? splitIps(sl.origin) : [];
+    if (!pats.length) return null;
+    const total = L[j].length;
+    L[j] = L[j].filter(x => { const ok = originMatch(x.host, pats); if (ok) x.ipOk = '출발IP'; return ok; });
+    return { pats, kept: L[j].length, total };
+  });
   const sugg = AS.map(() => new Map());
   const end = x => x.eHi == null ? Infinity : x.eHi;
   const idx = new Map();             // 앞 서버별 검색 구조 (갈라지는 경로면 여러 서버가 같은 앞 서버를 공유)
@@ -533,14 +560,15 @@ function analyze() {
   }
   // 체인 만들기
   const chains = [];
+  const originOn = origin.some(o => o);   // 출발 IP 를 넣었으면 그 출발 서버에서 시작하는 체인만
   for (const lvl of L) for (const r of lvl) {
-    if (r.parent || !r.kids.length) continue;
+    if (r.parent || !r.kids.length || (originOn && !origin[r.lv])) continue;
     chains.push(buildChain(r, tol));
   }
   chains.sort((a, b) => a.root.s - b.root.s || b.depth - a.depth);   // 첫 노드(출발 세션) 로그인 시각 순
   chains.forEach((c, i) => c.no = i + 1);
   const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
-  R = { L, chains, sugg, byId, addrs, PL };
+  R = { L, chains, sugg, byId, addrs, PL, origin };
 }
 const MAX_CANDS = 20;
 function upperBound(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
@@ -682,7 +710,8 @@ function renderSlots() {
         const opts = [`<option value="auto"${sl.from === 'auto' ? ' selected' : ''}>자동 (${left ? '왼쪽 칸: ' + esc(left.name) : '없음 — 출발점'})</option>`,
           `<option value=""${sl.from === '' ? ' selected' : ''}>없음 (출발점)</option>`]
           .concat(S.slots.filter(x => x !== sl).map(x => `<option value="${x.uid}"${String(sl.from) === String(x.uid) ? ' selected' : ''}>${esc(x.name)}</option>`)).join('');
-        return `<label>앞 서버 <span class="hint">(이 서버에 어디서 들어왔나 — C→C' 처럼 갈라지면 여기서 지정)</span><select class="from">${opts}</select></label>` + (dp ? `<div class="hop${dp.off ? ' skip' : ''}"><div class="hoph">← <span class="pn" data-of="${k}">${esc(dp.name)}</span> 에서 들어올 때</div>
+        return (activeParent(sl) ? '' : `<label>이 서버에 접속한 출발 IP <span class="hint">(공격자 IP — 넣으면 이 IP 에서 들어온 로그인부터만 분석. 여러 개·45.133.1.0/24·91.240.* 가능)</span><input type="text" class="origin" value="${esc(sl.origin)}" placeholder="예: 45.133.1.77, 91.240.118.0/24"></label>`)
+          + `<label>앞 서버 <span class="hint">(이 서버에 어디서 들어왔나 — C→C' 처럼 갈라지면 여기서 지정)</span><select class="from">${opts}</select></label>` + (dp ? `<div class="hop${dp.off ? ' skip' : ''}"><div class="hoph">← <span class="pn" data-of="${k}">${esc(dp.name)}</span> 에서 들어올 때</div>
         <label><span><span class="pn" data-of="${k}">${esc(dp.name)}</span> 가 접속한 이 서버 주소 <span class="hint">(NAT·공인 IP 등, 참고용)</span></span><input type="text" class="indst" value="${esc(sl.inDst)}" placeholder="예: 203.0.113.20"></label>
         <label><span>이 서버 last 에 찍히는 <span class="pn" data-of="${k}">${esc(dp.name)}</span> 의 IP <span class="hint">(출발지 비교에 사용)</span></span><input type="text" class="insrc" value="${esc(sl.inSrc)}" placeholder="비우면 앞 서버 실제·NAT IP 로 비교"></label>
         <div class="sg" id="sg${k}"></div>${dp.off && !sl.off ? '<div class="sg">앞 서버가 꺼져 있어 지금은 그 앞의 켜진 서버 실제·NAT IP 로 비교합니다</div>' : ''}</div>` : '');
@@ -712,6 +741,7 @@ function renderSlots() {
     const on = (sel, f, ev = 'input') => d.querySelector(sel).addEventListener(ev, e => { f(e.target.value); schedule(sl); });
     on('.nm', v => sl.name = v);
     on('.ip', v => sl.ip = v);
+    if (d.querySelector('.origin')) on('.origin', v => { sl.origin = v; syncOrigin(); });
     if (d.querySelector('.indst')) { on('.indst', v => sl.inDst = v); on('.insrc', v => sl.inSrc = v); }
     d.querySelector('.from').addEventListener('change', e => { sl.from = e.target.value; S.sel = null; renderSlots(); run(); });
     on('.yr', v => { sl.year = v; sl.dirty = true; });
@@ -743,6 +773,8 @@ function renderInfo() {
     else h += '<span class="dim">비어 있음</span><br>';
     h += sl.notes.map(n => `<span class="dim">${esc(n)}</span><br>`).join('');
     h += sl.warns.map(n => `<span class="w">⚠ ${esc(n)}</span><br>`).join('');
+    const opos = AS.indexOf(sl), og = R && opos >= 0 && R.origin ? R.origin[opos] : null;
+    if (og) h += `<span style="color:var(--accent)">출발 IP 일치 로그인 <b>${og.kept}</b> / ${og.total}개만 분석</span><br>`;
     el.innerHTML = h;
     const dp = declaredParent(sl);
     document.querySelectorAll(`.pn[data-of="${k}"]`).forEach(x => x.textContent = dp ? dp.name : '');
@@ -790,7 +822,20 @@ function filteredChains() {
     return ch.list.some(x => (x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q));
   });
 }
+// 작업 화면의 출발 IP 칸 ↔ 출발 서버 칸 값 맞추기
+function syncOrigin() {
+  const sl = originSlot(), inp = $('#org'), info = $('#orgInfo');
+  if (!inp) return;
+  inp.disabled = !sl;
+  inp.placeholder = sl ? `출발 IP 필터 (${sl.name} 에 접속한 공격자 IP)` : '출발 서버 없음';
+  if (document.activeElement !== inp) inp.value = sl ? sl.origin : '';
+  const k = sl ? S.slots.indexOf(sl) : -1, card = k >= 0 ? document.querySelector(`.slot[data-k="${k}"] .origin`) : null;
+  if (card && document.activeElement !== card) card.value = sl.origin;
+  const og = sl && R && R.origin ? R.origin[AS.indexOf(sl)] : null;
+  info.innerHTML = og ? `${esc(sl.name)} 로그인 중 출발 IP 일치 <b style="color:var(--accent)">${og.kept}</b> / ${og.total}개에서 시작` : '';
+}
 function renderNodes() {
+  syncOrigin();
   const el = $('#nodes');
   el.innerHTML = '서버 ' + S.slots.map((sl, k) => `<button class="nd${sl.off ? ' no' : ''}" data-k="${k}" title="눌러서 ${sl.off ? '켜기' : '끄기'}">${esc(sl.name)}</button>`).join('')
     + `<span style="margin-left:4px">${AS.length >= 2 && R ? topoText(AS.map((_, j) => j)).replace(/ → /g, '→') : ''}</span>`;
@@ -815,7 +860,8 @@ function renderChains() {
   S.shown = list.slice(0, CAP_CHAINS);
   if (!R.chains.length) {
     const have = AS.filter(s => s.sessions.length).length;
-    box.innerHTML = `<div class="empty">${AS.length < 2 ? '켜진 서버가 2개 이상이어야 합니다. 위의 서버 버튼으로 켜세요.' : have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
+    const og = R.origin && R.origin.find(o => o);
+    box.innerHTML = `<div class="empty">${og && !og.kept ? `출발 IP(${esc(og.pats.join(', '))})로 들어온 로그인이 출발 서버에 없습니다.` : AS.length < 2 ? '켜진 서버가 2개 이상이어야 합니다. 위의 서버 버튼으로 켜세요.' : have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
     $('#clfoot').textContent = ''; S.sel = null; return;
   }
   if (!R.chains.some(c => c.root.id === S.sel)) S.sel = (S.shown[0] || R.chains[0]).root.id;
@@ -1195,6 +1241,7 @@ function sampleData() {
   $('#fold').onclick = () => { S.fold = !S.fold; renderFold(); };
   $('#toWs').onclick = () => $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#cq').oninput = e => { S.cq = e.target.value; renderChains(); };
+  $('#org').oninput = e => { const sl = originSlot(); if (!sl) return; sl.origin = e.target.value; S.sel = null; schedule(); };
   const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
   setHH(); window.addEventListener('resize', setHH);
   document.addEventListener('keydown', e => {
