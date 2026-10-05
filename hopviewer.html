@@ -135,11 +135,11 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .stp{font-size:11.5px;padding:0 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;cursor:default}
 .stp.ok{color:var(--ok)} .stp.no{color:var(--bad)} .stp.mid{color:var(--warn)}
 .gwrap{padding:6px 12px 2px;overflow:auto;flex:none;max-height:42vh}
-.gwrap svg,.gfb svg{display:block}
-.gwrap text,.gfb text{font-family:var(--sans);font-size:11px;fill:var(--muted)}
-.gwrap .ln,.gfb .ln{font-weight:700;fill:var(--text);font-size:12px}
-.gwrap rect,.gfb rect{cursor:pointer}
-.gwrap rect.hl,.gfb rect.hl{stroke:var(--text);stroke-width:2}
+.gwrap svg{display:block}
+.gwrap text{font-family:var(--sans);font-size:11px;fill:var(--muted)}
+.gwrap .ln{font-weight:700;fill:var(--text);font-size:12px}
+.gwrap rect{cursor:pointer}
+.gwrap rect.hl{stroke:var(--text);stroke-width:2}
 .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted);padding:0 12px 6px;flex:none}
 .legend i{display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .dtable{flex:1;overflow:auto;min-height:120px;border-top:1px solid var(--line)}
@@ -167,9 +167,12 @@ tr.hl td{background:var(--accent-bg)}
 .dbar{position:relative;width:120px;height:8px;background:var(--line2);border-radius:2px}
 .dbar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:2px;min-width:2px}
 @media (max-width:900px){.dbg{grid-template-columns:minmax(0,1fr)}.dp{border-right:0;border-bottom:1px solid var(--line)}}
-.gfull{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
-.gfh{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.gfb{flex:1;overflow:auto;padding:8px 16px}
+/* 2번 섹션 전체화면: 체인 목록 + 그래프(+순서표) 가 창을 꽉 채움 */
+.ws.wsfull{position:fixed;inset:0;z-index:40;height:100vh;min-height:0;padding:10px;background:var(--bg);overflow:auto}
+body.nosc{overflow:hidden}
+/* 순서표 접기: 그래프가 남는 높이를 다 씀 */
+.ttoff .dtable{display:none}
+.ttoff .gwrap{flex:1 1 auto;max-height:none}
 .pnav{display:flex;align-items:center;gap:4px}
 .pnav select,.pbar select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
 .pnav .plab{flex:1;text-align:center;font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -235,7 +238,7 @@ tr.selrow td{background:var(--accent-bg)}
   <div class="panel insum" id="insum" hidden></div>
 
   <h2 class="sect">2. 접속 체인 · 타임테이블 <small>왼쪽에서 체인을 고르면(<span class="kbd">↑</span> <span class="kbd">↓</span> 키로 이동) 오른쪽에 그래프와 시간 순서표 — 계정명은 보지 않고 시간만 봅니다</small>
-    <button class="btn" id="toWs" style="margin-left:auto">화면 맞춤</button></h2>
+    <span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="toWs">화면 맞춤</button><button class="btn" id="wsFullBtn" title="체인 목록 + 그래프를 창 전체로 (Esc 로 돌아오기)">⛶ 전체화면</button></span></h2>
   <div class="ws" id="ws">
     <aside class="panel">
       <div class="clbar">
@@ -282,18 +285,10 @@ tr.selrow td{background:var(--accent-bg)}
   </div>
 </main>
 
-<div id="gfull" class="gfull" hidden>
-  <div class="gfh"><b id="gfTitle"></b><span class="spacer" style="flex:1"></span>
-    <label class="ctl"><input type="checkbox" id="gfDense"> 촘촘히</label>
-    <span class="hint">막대를 누르면 닫고 순서표의 그 행으로 · ↑↓ 체인 이동</span>
-    <button class="btn" id="gfClose">닫기 (Esc)</button></div>
-  <div class="gfb" id="ganttFull"></div>
-  <div class="legend" id="gfLegend"></div>
-</div>
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, gfull: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, wsfull: false, ttoff: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -1183,7 +1178,7 @@ function detailInto(ch, k) {
         <span class="hint">${win ? `<b style="color:var(--accent)">${win.unit === 'month' ? periodLabel(win.base, 'month') : win.unit === 'day' ? periodLabel(win.base, 'day') : fDur(win.b - win.a)}</b> 보는 중 · 순서표 ${evAll.length - ev.length}행 숨김 · ` : spanD > 3 ? `<b style="color:var(--warn)">생명주기 ${Math.round(spanD)}일</b> — ` : ''}그래프 드래그 = 확대 · 더블클릭 = 전체</span></div>
     </div>
     <div class="gwrap" id="gantt"></div>
-    <div class="legend"><span class="gtools"><button class="btn" id="gBig" title="그래프만 화면 전체로">⛶ 크게 보기</button><label class="ctl" title="줄·막대 높이를 줄여 한 화면에 더 많이"><input type="checkbox" id="gDense"${S.gdense ? ' checked' : ''}> 촘촘히</label></span>${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span><i style="background:repeating-linear-gradient(45deg,var(--r-other) 0 2px,transparent 2px 4px)"></i>빗금 = pty 아님 (sftp·scp 등 가능)</span><span>같은 서버에서 겹친 세션은 줄을 나눠 표시 · <b style="color:var(--warn)">동시 N</b> = 창 N개가 열려 있던 때가 있음</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
+    <div class="legend"><span class="gtools"><button class="btn" id="gBig" title="2번 섹션(체인 목록 + 그래프)을 창 전체로 · Esc 로 돌아오기">${S.wsfull ? '⛶ 전체화면 끝 (Esc)' : '⛶ 전체화면'}</button><button class="btn" id="ttTog" title="그래프 아래 시간 순서표 접기/펼치기">${S.ttoff ? '▼ 순서표 펼치기' : '▲ 순서표 접기'}</button><label class="ctl" title="줄·막대 높이를 줄여 한 화면에 더 많이"><input type="checkbox" id="gDense"${S.gdense ? ' checked' : ''}> 촘촘히</label></span>${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span><i style="background:repeating-linear-gradient(45deg,var(--r-other) 0 2px,transparent 2px 4px)"></i>빗금 = pty 아님 (sftp·scp 등 가능)</span><span>같은 서버에서 겹친 세션은 줄을 나눠 표시 · <b style="color:var(--warn)">동시 N</b> = 창 N개가 열려 있던 때가 있음</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
     <div class="dtable"><table>
       <thead><tr><th></th><th>#</th><th>시각</th><th>출발 후</th><th>간격</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead>
       <tbody>${ev.slice(0, CAP_EVENTS).map((e, i) => {
@@ -1208,8 +1203,7 @@ function detailInto(ch, k) {
   const unitPrev = (base, unit) => unit === 'month' ? (d => Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))(new Date(base)) : base - 86400000;
   const zoom = (a, b) => { if (a == null) { S.win = null; renderDetail(); } else setWin(a, b); };
   drawGantt(ch);
-  if (S.gfull) drawFull(ch);
-  $('#gantt').onzoom = zoom; $('#ganttFull').onzoom = zoom;
+  $('#gantt').onzoom = zoom;
   const inT = v => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null; };
   $('#wA').onchange = $('#wB').onchange = () => { const a = inT($('#wA').value), b = inT($('#wB').value); if (a != null && b != null && b > a) setWin(a, b); };
   $('#wPrev').onclick = () => {
@@ -1223,7 +1217,8 @@ function detailInto(ch, k) {
   $('#wDay').onclick = () => unitWin(periodStart(va, 'day'), 'day');
   $('#wMon').onclick = () => unitWin(periodStart(va, 'month'), 'month');
   $('#wAll').onclick = () => { S.win = null; renderDetail(); };
-  $('#gBig').onclick = () => { S.gfull = true; $('#gfull').hidden = false; drawFull(ch); };
+  $('#gBig').onclick = () => setWsFull(!S.wsfull);
+  $('#ttTog').onclick = () => setTtOff(!S.ttoff);
   $('#gDense').onchange = e => setDense(e.target.checked);
   const rr = $('#refRows'); if (rr) rr.onchange = () => { S.refRows = rr.checked; renderDetail(); };
   const kb = $('#kpBtn'); if (kb) kb.onclick = () => toggleKeep(ch);
@@ -1257,15 +1252,18 @@ function detailInto(ch, k) {
     a.download = `hop_${k ? 'keep' : 'timeline'}_${fD(ch.t0)}_${ch.no}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 }
-// 그래프 전체화면 (detailInto 안에서 불리므로 킵 보기면 그때 값으로 그려짐)
-function drawFull(ch) {
-  $('#gfTitle').innerHTML = `#${ch.no} ${chainPath(ch)} <span class="dim" style="font-weight:400">${fDT(ch.t0, ch.root.sec)} ~ ${ch.open ? '접속 중' : fT(ch.t1, ch.root.sec)}${S.view === 'keep' ? ' · ★ 킵' : ''}</span>`;
-  $('#gfDense').checked = S.gdense;
-  drawGantt(ch, 'ganttFull');
-  const lg = document.querySelector('#detail .legend');
-  $('#gfLegend').innerHTML = lg ? lg.innerHTML.replace(/<span class="gtools">[\s\S]*?<\/label><\/span>/, '') : '';
+function setWsFull(v) {
+  S.wsfull = v;
+  $('#ws').classList.toggle('wsfull', v);
+  document.body.classList.toggle('nosc', v);
+  renderDetail();
 }
-function closeFull() { S.gfull = false; $('#gfull').hidden = true; }
+function setTtOff(v) {
+  S.ttoff = v;
+  try { localStorage.setItem('hopviewer.ttoff', v ? '1' : ''); } catch (e) {}
+  $('#detail').classList.toggle('ttoff', v);
+  renderDetail();
+}
 function setDense(v) {
   S.gdense = v;
   try { localStorage.setItem('hopviewer.gdense', v ? '1' : ''); } catch (e) {}
@@ -1333,7 +1331,8 @@ function drawGantt(ch, boxId = 'gantt') {
     .concat(refLanes(ch).map((r, i) => ({ key: 'r' + i, ref: r, list: r.list.filter(ov) })));
   const laneOf = new Map(defs.map((d, k) => [d.key, k]));
   // 촘촘히: 줄·막대 높이를 줄여 세로 길이를 절반 가까이로 (서버 정보는 이름 옆 한 줄)
-  const dense = S.gdense, RH = dense ? 12 : 20, BH = dense ? 9 : 15, LPAD = dense ? 3 : 6, MINH = dense ? 20 : 36, FS = dense ? 9 : 11;
+  const dense = S.gdense, FS = dense ? 9 : 11;
+  let RH = dense ? 12 : 20, BH = dense ? 9 : 15, LPAD = dense ? 3 : 6, MINH = dense ? 20 : 36;
   const cs = getComputedStyle(box), W = Math.max(520, box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2), LW = 104, RP = 14, TOP = 20;
   let t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0), a, b;
   if (WIN) { a = WIN[0]; b = WIN[1]; t1 = b; }
@@ -1357,7 +1356,15 @@ function drawGantt(ch, boxId = 'gantt') {
     let conc = 0, cur = 0; for (const [, dd] of evs) { cur += dd; if (cur > conc) conc = cur; }
     return Object.assign({}, d, { list, rows: Math.max(1, rowEnd.length), conc });
   });
-  const laneTop = [], laneH = lanes.map(l => Math.max(MINH, l.rows * RH + LPAD * 2));
+  let laneH = lanes.map(l => Math.max(MINH, l.rows * RH + LPAD * 2));
+  // 순서표를 접어 그래프 칸이 남으면 줄 높이를 늘려 채움 (최대 1.8배, 막대는 26px 까지)
+  const room = box.closest('.ttoff') ? box.clientHeight - TOP - 12 : 0, need = laneH.reduce((p, q) => p + q, 0);
+  if (room > need) {
+    const k = Math.min(1.8, room / need);
+    RH *= k; LPAD *= k; MINH *= k; BH = Math.min(26, BH * k);
+    laneH = lanes.map(l => Math.max(MINH, l.rows * RH + LPAD * 2));
+  }
+  const laneTop = [];
   let acc = TOP; for (const h of laneH) { laneTop.push(acc); acc += h; }
   const H = acc + 4;
   const barY = x => laneTop[laneOf.get(x.lv)] + LPAD + x._row * RH + (RH - BH) / 2;
@@ -1673,7 +1680,7 @@ function sampleData() {
   const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
   setHH(); window.addEventListener('resize', setHH);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && S.gfull) { closeFull(); return; }
+    if (e.key === 'Escape' && S.wsfull) { setWsFull(false); return; }
     if ((e.target.closest && e.target.closest('input,textarea,select')) || e.ctrlKey || e.metaKey || e.altKey) return;
     const d = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
     if (!d) return;
@@ -1693,21 +1700,14 @@ function sampleData() {
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => e.preventDefault());
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => {
-    const draw = ch => { drawGantt(ch); if (S.gfull) drawGantt(ch, 'ganttFull'); };
+    const draw = ch => drawGantt(ch);
     if (S.view === 'keep') { const k = KEEPS.find(x => x.key === S.keepSel); if (k) withKeep(k, draw); return; }
     const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) draw(ch);
   }, 150); });
   loadKeeps();
-  try { S.gdense = !!localStorage.getItem('hopviewer.gdense'); } catch (e) {}
-  $('#gfClose').onclick = closeFull;
-  $('#gfDense').onchange = e => setDense(e.target.checked);
-  $('#ganttFull').onclick = e => {                 // 막대 누르면 닫고 순서표의 그 행으로
-    if ($('#ganttFull')._dragged) return;
-    const t = e.target.closest('[data-sid]'); if (!t) return;
-    closeFull();
-    const row = document.getElementById('ev-' + t.dataset.sid);
-    if (row) { row.scrollIntoView({ block: 'center' }); row.classList.add('hl'); setTimeout(() => row.classList.remove('hl'), 1500); }
-  };
+  try { S.gdense = !!localStorage.getItem('hopviewer.gdense'); S.ttoff = !!localStorage.getItem('hopviewer.ttoff'); } catch (e) {}
+  $('#detail').classList.toggle('ttoff', S.ttoff);
+  $('#wsFullBtn').onclick = () => setWsFull(true);
   $('#kExp').onclick = exportKeeps;
   $('#kImp').onclick = () => $('#kImpFile').click();
   $('#kImpFile').onchange = e => { const f = e.target.files[0]; if (f) importKeeps(f); e.target.value = ''; };
