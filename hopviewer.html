@@ -9,7 +9,7 @@
   --bg:#0b0f15;--panel:#121821;--panel2:#18202b;--line:#253041;--line2:#1d2633;
   --text:#e4eaf2;--muted:#8a97a8;--faint:#5c697b;--accent:#5b9dff;--accent-bg:#1a2b47;
   --ok:#34c47c;--warn:#e9c04a;--bad:#ff4d5e;
-  --r-start:#8f86f0;--r-jump:#5b9dff;--r-target:#22d3ee;--r-fetch:#ff9a3d;--r-other:#6b7787;
+  --r-start:#8f86f0;--r-jump:#5b9dff;--r-target:#22d3ee;--r-fetch:#ff9a3d;--r-other:#6b7787;--r-ref:#e879f9;
   --mono:ui-monospace,"Cascadia Mono","D2Coding",Consolas,"SFMono-Regular",monospace;
   --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif;
   color-scheme:dark;
@@ -18,7 +18,7 @@
   --bg:#f5f7fa;--panel:#ffffff;--panel2:#f0f3f7;--line:#d9dfe7;--line2:#e7ebf0;
   --text:#18212d;--muted:#5d6b7c;--faint:#8b97a6;--accent:#2563eb;--accent-bg:#e5eeff;
   --ok:#15803d;--warn:#a77d00;--bad:#d92638;
-  --r-start:#6d5ae6;--r-jump:#2563eb;--r-target:#0e7490;--r-fetch:#d9690f;--r-other:#8b97a6;
+  --r-start:#6d5ae6;--r-jump:#2563eb;--r-target:#0e7490;--r-fetch:#d9690f;--r-other:#8b97a6;--r-ref:#c026d3;
   color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -76,6 +76,10 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .slot.off .sh input.nm{text-decoration:line-through}
 .tg{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:0 9px;font-size:11px;font-weight:700;cursor:pointer;color:var(--ok)}
 .tg.no{color:var(--faint)}
+.tg.rf{color:var(--r-ref)}
+.slot.refm{border-style:dashed;border-color:var(--r-ref)}
+.nd.rf{border-style:dashed;border-color:var(--r-ref);background:none;color:var(--r-ref)}
+.bd.rf{color:var(--r-ref);border-color:currentColor}
 .nodes{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
 .nd{border:1px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:6px;padding:0 8px;font-weight:700;cursor:pointer;font-size:12px}
 .nd.no{border-color:var(--line);background:none;color:var(--faint);text-decoration:line-through}
@@ -240,6 +244,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 체인 마지막 서버 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
     · <b>출발 IP</b>: 출발 서버(A) 칸이나 작업 화면 왼쪽 위에 A 에 접속한 공격자 IP 를 넣으면, 그 IP 에서 들어온 A 로그인만 남기고 거기서부터 B·C·D 로 이어 갑니다. 다른 사람이 A 에서 B 로 간 접속은 체인에 붙지 않습니다.<br>
     · <b>갈라지는 경로</b>: 서버 칸의 <b>앞 서버</b>를 고르면 A→B→C→D 와 C→C' 처럼 한 서버에서 여러 서버로 갈라지는 구조도 분석합니다. 기본값 "자동" 은 바로 왼쪽 칸입니다.<br>
     · 서버마다 시계가 다르면 각 칸의 <b>시간 보정(초)</b>에 더할 값을 넣으세요(예: B 시계가 90초 빠르면 -90). 연도 없는 last 출력은 <code>wtmp begins</code> 줄 → 요일 순으로 연도를 추정하며, 연도 칸에 직접 적을 수도 있습니다.<br>
@@ -250,7 +255,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGH';
 const MONS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const WD = 'Sun Mon Tue Wed Thu Fri Sat'.split(' ');
@@ -260,12 +265,13 @@ const ROLE = {
   target: { c: 'var(--r-target)', t: '최종 서버' },
   fetch: { c: 'var(--r-fetch)', t: '복귀 후 재접속(sftp 추정)' },
   other: { c: 'var(--r-other)', t: '기타 접속' },
+  ref: { c: 'var(--r-ref)', t: '비교 서버 로그인 (진하게 = 체인 마지막 서버 세션 안)' },
 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
 let SLOT_UID = 0;
-const newSlot = name => ({ uid: ++SLOT_UID, from: 'auto', name, origin: '', ip: '', inDst: '', inSrc: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
+const newSlot = name => ({ uid: ++SLOT_UID, from: 'auto', ref: false, name, origin: '', ip: '', inDst: '', inSrc: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
 
 /* ───────── 시간 표시 (모든 시각은 '표시 시간대 벽시계' ms 를 UTC 필드로 저장) ───────── */
 const fD = t => { const d = new Date(t); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
@@ -484,7 +490,7 @@ function hasCycle(sl) {
 function activeParent(sl) {
   if (hasCycle(sl)) return null;
   let p = declaredParent(sl);
-  while (p && p.off) p = declaredParent(p);
+  while (p && (p.off || p.ref)) p = declaredParent(p);
   return p;
 }
 // P → D 접속: D 의 last 에 찍히는 P 의 출발지 후보
@@ -520,9 +526,9 @@ function originMatch(h, pats) {
   });
 }
 // 출발 IP 를 넣을 칸: 켜진 서버 중 앞 서버가 없는 첫 칸 (보통 A)
-const originSlot = () => S.slots.find(sl => !sl.off && !activeParent(sl)) || null;
+const originSlot = () => S.slots.find(sl => !sl.off && !sl.ref && !activeParent(sl)) || null;
 function analyze() {
-  AS = S.slots.filter(sl => !sl.off);
+  AS = S.slots.filter(sl => !sl.off && !sl.ref);
   const tol = S.tol * 1000, N = AS.length;
   const PL = AS.map(sl => { const p = activeParent(sl); return p ? AS.indexOf(p) : -1; });   // 켜진 서버 위치 기준 앞 서버
   const L = AS.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
@@ -568,7 +574,8 @@ function analyze() {
   chains.sort((a, b) => a.root.s - b.root.s || b.depth - a.depth);   // 첫 노드(출발 세션) 로그인 시각 순
   chains.forEach((c, i) => c.no = i + 1);
   const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
-  R = { L, chains, sugg, byId, addrs, PL, origin };
+  const RF = S.slots.filter(sl => !sl.off && sl.ref).map(sl => ({ sl, ss: sl.sessions, starts: sl.sessions.map(x => x.s) }));
+  R = { L, chains, sugg, byId, addrs, PL, origin, RF };
 }
 const MAX_CANDS = 20;
 function upperBound(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
@@ -683,6 +690,11 @@ function events(ch) {
       ev.push({ t: null, kind: 2, x, txt: `<b>${esc(X)}</b> 세션 ${x.endKind === 'gone' ? '로그아웃 기록 없음 (gone - no logout)' : '아직 접속 중 (still logged in)'}` });
     }
   }
+  if (S.refRows && R.RF.length) for (const ln of refLanes(ch)) for (const x of ln.list) {
+    const tag = `<span class="bd rf">비교</span> `, where = x.strong ? '체인 마지막 서버 세션 안 (경유지 모름)' : '<span class="hint">체인 시간대와 겹침</span>';
+    ev.push({ t: x.s, kind: 0, x, txt: `${tag}<b>${esc(x.srv)}</b> 로그인 — ${where}` });
+    if (x.e != null) ev.push({ t: x.e, kind: 1, x, txt: `${tag}<b>${esc(x.srv)}</b> 로그아웃 <span class="hint">(${fDur(x.e - x.s, x.sec)})</span>` });
+  }
   ev.sort((a, b) => {
     if (a.t == null || b.t == null) return (a.t == null) - (b.t == null);
     if (a.t !== b.t) return a.t - b.t;
@@ -698,11 +710,11 @@ function renderSlots() {
   const box = $('#slots'); box.innerHTML = '';
   S.slots.forEach((sl, k) => {
     if (k) { const a = document.createElement('div'), dp = declaredParent(sl); a.className = 'arrow'; a.textContent = dp === S.slots[k - 1] ? '→' : '┊'; a.title = dp ? `앞 서버: ${dp.name}` : '출발점'; box.appendChild(a); }
-    const d = document.createElement('div'); d.className = 'slot' + (sl.off ? ' off' : ''); d.dataset.k = k;
+    const d = document.createElement('div'); d.className = 'slot' + (sl.off ? ' off' : sl.ref ? ' refm' : ''); d.dataset.k = k;
     d.innerHTML = `
       <div class="sh"><span class="lvn">${k + 1}</span><input type="text" class="nm" value="${esc(sl.name)}" title="서버 이름">
         <button class="mv" data-act="left" title="앞으로 이동"${k ? '' : ' disabled'}>◀</button><button class="mv" data-act="right" title="뒤로 이동"${k < S.slots.length - 1 ? '' : ' disabled'}>▶</button>
-        <button class="tg${sl.off ? ' no' : ''}" data-act="tog" title="분석에 넣기/빼기">${sl.off ? 'OFF' : 'ON'}</button>
+        <button class="tg${slotState(sl)[1]}" data-act="tog" title="누를 때마다 ON(체인) → 비교(체인 밖, 고른 체인 시간대 로그인만 같이 표시) → OFF">${slotState(sl)[0]}</button>
         ${S.slots.length > 2 ? '<button class="xbtn" data-act="del" title="이 서버 칸 삭제">×</button>' : ''}</div>
       <label>이 서버 실제 IP <span class="hint">(서버 안에서 ip addr 로 보이는 주소, 선택)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.10.2.20"></label>
       ${(() => {
@@ -758,7 +770,7 @@ function renderFold() {
   const sum = $('#insum'), box = $('#slots');
   box.hidden = S.fold; sum.hidden = !S.fold; $('#fold').textContent = S.fold ? '펼치기' : '접기';
   if (!S.fold) return;
-  sum.innerHTML = S.slots.map((sl, k) => `<span${sl.off ? ' class="dim" style="text-decoration:line-through"' : ''}>${declaredParent(sl) ? '<span class="dim">' + esc(declaredParent(sl).name) + '→</span>' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.inDst ? ' <span class="mono dim">(NAT ' + esc(sl.inDst) + ')</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
+  sum.innerHTML = S.slots.map((sl, k) => `<span${sl.off ? ' class="dim" style="text-decoration:line-through"' : ''}>${declaredParent(sl) && !sl.ref ? '<span class="dim">' + esc(declaredParent(sl).name) + '→</span>' : ''}<b>${esc(sl.name)}</b>${sl.ref ? ' <span class="bd rf">비교</span>' : ''} ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.inDst ? ' <span class="mono dim">(NAT ' + esc(sl.inDst) + ')</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
     + `<a style="margin-left:auto" id="unfold">로그 추가·수정</a>`;
   $('#unfold').onclick = () => { S.fold = false; renderFold(); };
 }
@@ -810,13 +822,15 @@ const candN = x => x.cands.length + (x.candMore ? '+' : '');
 // 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
 const CAP_CHAINS = 120, CAP_EVENTS = 1500;
 function chainPath(ch) { return topoText([...ch.lvs]); }
-const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치']];
+const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치'], ['ref', '비교 겹침']];
+const refHit = ch => R.RF.length && refStrong(ch).some(n => n);
 function isFull(ch) { return ch.lvs.size === AS.length; }
 function filteredChains() {
   const q = S.cq.trim().toLowerCase();
   return R.chains.filter(ch => {
     if (S.cf === 'full' && !isFull(ch)) return false;
     if (S.cf === 'pattern' && !ch.pattern) return false;
+    if (S.cf === 'ref' && !refHit(ch)) return false;
     if (!q) return true;
     if (fDT(ch.t0).includes(q)) return true;
     return ch.list.some(x => (x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q));
@@ -837,8 +851,9 @@ function syncOrigin() {
 function renderNodes() {
   syncOrigin();
   const el = $('#nodes');
-  el.innerHTML = '서버 ' + S.slots.map((sl, k) => `<button class="nd${sl.off ? ' no' : ''}" data-k="${k}" title="눌러서 ${sl.off ? '켜기' : '끄기'}">${esc(sl.name)}</button>`).join('')
-    + `<span style="margin-left:4px">${AS.length >= 2 && R ? topoText(AS.map((_, j) => j)).replace(/ → /g, '→') : ''}</span>`;
+  const rfs = S.slots.filter(sl => !sl.off && sl.ref);
+  el.innerHTML = '서버 ' + S.slots.map((sl, k) => `<button class="nd${slotState(sl)[1]}" data-k="${k}" title="지금: ${slotState(sl)[2]} — 누를 때마다 체인 → 비교 → 끔">${esc(sl.name)}</button>`).join('')
+    + `<span style="margin-left:4px">${AS.length >= 2 && R ? topoText(AS.map((_, j) => j)).replace(/ → /g, '→') : ''}${rfs.length ? ` · 비교: ${rfs.map(x => esc(x.name)).join(', ')}` : ''}</span>`;
   el.querySelectorAll('.nd').forEach(b => b.onclick = () => toggleSlot(S.slots[+b.dataset.k]));
 }
 // 서버 순서 바꾸기. "← 앞 서버에서 들어올 때" 칸 값은 그 칸에 그대로 남고, 제목의 앞 서버 이름만 새 순서로 바뀜
@@ -849,12 +864,19 @@ function moveSlot(k, d) {
   const D = S.dbg; for (const f of ['l', 'r']) D[f] = D[f] === k ? j : D[f] === j ? k : D[f];
   S.sel = null; renderSlots(); run();
 }
-function toggleSlot(sl) { sl.off = !sl.off; S.sel = null; renderSlots(); run(); }
+function toggleSlot(sl) {
+  if (!sl.off && !sl.ref) sl.ref = true;
+  else if (sl.ref) { sl.ref = false; sl.off = true; }
+  else sl.off = false;
+  S.sel = null; renderSlots(); run();
+}
+const slotState = sl => sl.off ? ['OFF', ' no', '끔'] : sl.ref ? ['비교', ' rf', '비교만 (체인 밖)'] : ['ON', '', '체인'];
 function renderChains() {
   renderNodes();
   const box = $('#chains'), seg = $('#cf');
-  const cnt = { all: R.chains.length, full: R.chains.filter(isFull).length, pattern: R.chains.filter(c => c.pattern).length };
-  seg.innerHTML = CF.map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
+  if (S.cf === 'ref' && !R.RF.length) S.cf = 'all';
+  const cnt = { all: R.chains.length, full: R.chains.filter(isFull).length, pattern: R.chains.filter(c => c.pattern).length, ref: R.RF.length ? R.chains.filter(refHit).length : 0 };
+  seg.innerHTML = CF.filter(([k]) => k !== 'ref' || R.RF.length).map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
   seg.querySelectorAll('button').forEach(b => b.onclick = () => { S.cf = b.dataset.k; renderChains(); });
   const list = filteredChains();
   S.shown = list.slice(0, CAP_CHAINS);
@@ -869,7 +891,8 @@ function renderChains() {
     const r = ch.root;
     const pat = ch.pattern ? '<span class="bd ok" title="점프 후 역순 회수 패턴과 일치">역순 ✓</span>'
       : ch.found ? `<span class="bd warn" title="회수(재접속)가 확인된 서버 연결 ${ch.found}/${ch.needed}${ch.ordered ? '' : ' · 순서 다름'}">회수 ${ch.found}/${ch.needed}</span>` : '';
-    const ip = ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '';
+    const ip = (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
+      + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인 마지막 서버 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
     const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
     return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
       <div class="l1"><span class="no">#${ch.no}</span><span>${fD(ch.t0).slice(5)} ${fT(ch.t0)} ~ ${end}</span><span class="bds">${pat}${ip}</span></div>
@@ -897,7 +920,7 @@ function renderDetail() {
     <div class="dhead">
       <div class="dt"><span class="ttl">#${ch.no} ${chainPath(ch)}</span>${verdict}
         <span class="dim">${fDT(ch.t0, ch.root.sec)} ~ ${ch.open ? '접속 중' : fT(ch.t1, ch.root.sec)}${ch.open ? '' : ' · ' + fDur(ch.t1 - ch.t0)}</span>
-        <span style="flex:1"></span><button class="btn" id="copyTsv">표 복사</button><button class="btn" id="csv">CSV 저장</button></div>
+        <span style="flex:1"></span>${R.RF.length ? `<label class="ctl" title="비교 서버 로그인을 순서표에도 끼워 넣기"><input type="checkbox" id="refRows"${S.refRows ? ' checked' : ''}> 비교 서버 행</label>` : ''}<button class="btn" id="copyTsv">표 복사</button><button class="btn" id="csv">CSV 저장</button></div>
       <div class="steps">${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
     </div>
     <div class="gwrap" id="gantt"></div>
@@ -906,18 +929,19 @@ function renderDetail() {
       <thead><tr><th></th><th>#</th><th>시각</th><th>출발 후</th><th>간격</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead>
       <tbody>${ev.slice(0, CAP_EVENTS).map((e, i) => {
         const x = e.x, prev = i && ev[i - 1].t != null && e.t != null ? e.t - ev[i - 1].t : null;
-        return `<tr class="${e.kind ? 'out' : ''}" data-sid="${x.id}"${e.kind ? '' : ` id="ev-${x.id}"`}>
+        return `<tr class="${e.kind ? 'out' : ''}"${x.role === 'ref' && !x.strong ? ' style="opacity:.55"' : ''} data-sid="${x.id}"${e.kind ? '' : ` id="ev-${x.id}"`}>
           <td class="rc"><div style="background:${ROLE[x.role].c};opacity:${e.kind ? .35 : 1}"></div></td>
           <td class="dim">${i + 1}</td>
           <td class="tm">${e.t == null ? '-' : fDT(e.t, x.sec)}</td>
           <td class="tm dim">${e.t == null ? '' : '+' + fDur(e.t - ch.t0, x.sec)}</td>
           <td class="tm dim">${prev == null ? '' : fDur(prev, x.sec)}</td>
-          <td><span class="sv">${nm(x.lv)}</span></td>
+          <td><span class="sv">${srvName(x)}</span></td>
           <td class="act">${e.txt}</td>
           <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${ipBadge(x)}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
           <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`;
       }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
   drawGantt(ch);
+  const rr = $('#refRows'); if (rr) rr.onchange = () => { S.refRows = rr.checked; renderDetail(); };
   // 그래프 ↔ 순서표 연동
   const hl = (sid, on) => box.querySelectorAll(`[data-sid="${sid}"]`).forEach(el => el.classList.toggle('hl', on));
   box.onmouseover = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, true); };
@@ -926,7 +950,7 @@ function renderDetail() {
     const t = e.target.closest('[data-sid]'), row = t && document.getElementById('ev-' + t.dataset.sid);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
-  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), AS[e.x.lv].name, plainText(e.txt), e.x.user, e.x.tty, e.x.host, e.x.raw]));
+  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), plainText(srvName(e.x)), plainText(e.txt), e.x.user, e.x.tty, e.x.host, e.x.raw]));
   $('#copyTsv').onclick = () => { navigator.clipboard.writeText(rows().map(r => r.join('\t')).join('\n')); $('#copyTsv').textContent = '복사됨'; };
   $('#csv').onclick = () => {
     const csv = '﻿' + rows().map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -949,19 +973,58 @@ function steps(ch) {
   if (ch.needed >= 2 && ch.found >= 2) out.push({ cls: ch.ordered ? 'ok' : 'mid', ic: ch.ordered ? '✓' : '!', t: ch.ordered ? '역순' : '순서 다름', tip: ch.ordered ? '회수 순서가 깊은 서버부터 (역순)' : '아래쪽 서버의 회수가 위쪽 서버의 회수보다 늦음' });
   return out;
 }
+/* ───────── 비교 서버 (체인 밖, 경유지를 모르는 종착 서버 등) ─────────
+   짝을 맞추지 않고, 고른 체인 시간대의 로그인만 그래프·순서표에 같이 띄운다.
+   "체인 안" = 체인의 마지막 서버(아래에 다른 서버가 없는 서버) 세션 안에 완전히 들어간 로그인 */
+function chainLeaves(ch) {
+  const leaf = new Set([...ch.lvs].filter(lv => ![...ch.lvs].some(o => R.PL[o] === lv)));
+  return ch.list.filter(x => leaf.has(x.lv));
+}
+// 체인 목록용: 비교 서버별 "체인 안" 로그인 수 (시작시각 이분 탐색으로 범위만 확인)
+function refStrong(ch) {
+  if (ch._rs) return ch._rs;
+  const tol = S.tol * 1000, leaves = chainLeaves(ch), hi = (ch.open ? Infinity : ch.t1) + tol;
+  ch._rs = R.RF.map(({ ss, starts }) => {
+    let n = 0;
+    for (let j = upperBound(starts, ch.t0 - tol - 60000 - 1); j < ss.length && ss[j].s <= hi; j++)
+      if (leaves.some(p => inside(p, ss[j]))) n++;
+    return n;
+  });
+  return ch._rs;
+}
+// 그래프·순서표용: 체인 시간대와 겹치는 비교 서버 세션 전부 (고른 체인 하나만 계산)
+function refLanes(ch) {
+  if (ch._rl) return ch._rl;
+  const leaves = chainLeaves(ch), tEnd = ch.open ? Infinity : ch.t1;
+  ch._rl = R.RF.map(({ sl, ss, starts }, i) => {
+    const list = [];
+    for (let j = 0, n = upperBound(starts, tEnd); j < n; j++) {
+      const x = ss[j];
+      if ((x.e == null ? Infinity : x.e) < ch.t0) continue;
+      list.push(Object.assign({}, x, { id: `r${i}:${j}`, lv: 'r' + i, srv: sl.name, role: 'ref', dep: 99,
+        strong: leaves.some(p => inside(p, x)), cands: [], kids: [], parent: null, ipOk: null }));
+    }
+    return { sl, list, strongN: list.filter(x => x.strong).length };
+  });
+  return ch._rl;
+}
+const srvName = x => x.role === 'ref' ? esc(x.srv) : nm(x.lv);
+
 function drawGantt(ch) {
   const box = document.getElementById('gantt');
   if (!box) return;
-  const order = topoOrder([...ch.lvs]), laneOf = new Map(order.map((lv, k) => [lv, k])), nL = order.length;
-  const W = Math.max(520, box.clientWidth - 26), LW = 96, RP = 14, TOP = 20, RH = 20, BH = 15, LPAD = 6;
+  const order = topoOrder([...ch.lvs]);
+  const defs = order.map(lv => ({ key: lv, list: ch.list.filter(x => x.lv === lv) }))
+    .concat(refLanes(ch).map((r, i) => ({ key: 'r' + i, ref: r, list: r.list })));
+  const laneOf = new Map(defs.map((d, k) => [d.key, k]));
+  const W = Math.max(520, box.clientWidth - 26), LW = 104, RP = 14, TOP = 20, RH = 20, BH = 15, LPAD = 6;
   const t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0);
   const pad0 = (t1 - t0) * 0.02, a = t0 - pad0, b = t1 + pad0;
-  const X = t => LW + (t - a) / (b - a) * (W - LW - RP);
+  const X = t => LW + (Math.min(b, Math.max(a, t)) - a) / (b - a) * (W - LW - RP);   // 비교 서버 세션은 화면 범위로 잘라 그림
   const isPty = x => /^(pts|tty|vc|console|:)/.test(x.tty);
   // 서버마다 세션을 칸에 배치: 시작 순으로 놓되, 화면에서 앞 막대(글자 포함)와 겹치면 아래 칸으로
-  const lanes = [];
-  for (let k = 0; k < nL; k++) {
-    const list = ch.list.filter(x => x.lv === order[k]).sort((p, q) => p.s - q.s), rowEnd = [];
+  const lanes = defs.map(d => {
+    const list = d.list.slice().sort((p, q) => p.s - q.s), rowEnd = [];
     for (const x of list) {
       const x1 = X(x.s), x2 = Math.max(x1 + 3, X(x.e == null ? t1 : x.e));
       const need = Math.max(x2, x1 + (x2 - x1 > 70 ? 0 : 74));      // 짧은 막대는 오른쪽 글자 자리까지
@@ -973,9 +1036,9 @@ function drawGantt(ch) {
     const evs = [];
     for (const x of list) { evs.push([x.s, 1]); if (x.e != null) evs.push([x.e, -1]); }
     evs.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
-    let conc = 0, cur = 0; for (const [, d] of evs) { cur += d; if (cur > conc) conc = cur; }
-    lanes.push({ list, rows: Math.max(1, rowEnd.length), conc });
-  }
+    let conc = 0, cur = 0; for (const [, dd] of evs) { cur += dd; if (cur > conc) conc = cur; }
+    return Object.assign({}, d, { list, rows: Math.max(1, rowEnd.length), conc });
+  });
   const laneTop = [], laneH = lanes.map(l => Math.max(36, l.rows * RH + LPAD * 2));
   let acc = TOP; for (const h of laneH) { laneTop.push(acc); acc += h; }
   const H = acc + 4;
@@ -988,7 +1051,18 @@ function drawGantt(ch) {
     g += `<line x1="${x}" x2="${x}" y1="${TOP - 4}" y2="${H - 2}" stroke="var(--line2)"/><text x="${x}" y="${TOP - 7}" text-anchor="middle">${step >= 86400000 ? fD(t).slice(5) : fT(t)}</text>`;
   }
   lanes.forEach((ln, k) => {
-    const lv = order[k], y = laneTop[k], h = laneH[k], sl = AS[lv], ip = sl.ip.split(/[\s,]+/)[0], pl = R.PL[lv];
+    const y = laneTop[k], h = laneH[k];
+    if (ln.ref) {                    // 비교 서버 줄
+      const sl = ln.ref.sl;
+      g += `<rect x="0" y="${y}" width="${W}" height="${h}" fill="var(--r-ref)" opacity=".06"/>`;
+      if (!lanes[k - 1].ref) g += `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--r-ref)" stroke-dasharray="4 3"/>`;
+      g += `<line x1="0" x2="${W}" y1="${y + h - 0.5}" y2="${y + h - 0.5}" stroke="var(--line2)"/>`;
+      g += `<text x="6" y="${y + h / 2 - 8}"><title>체인과 짝을 맞추지 않는 비교 서버 — 체인 시간대에 겹친 로그인만 표시</title><tspan class="ln" style="fill:var(--r-ref)">${esc(sl.name)}</tspan><tspan style="font-size:9.5px"> 비교</tspan>`
+        + `<tspan x="6" dy="12" style="font-size:9.5px;fill:${ln.ref.strongN ? 'var(--r-ref)' : 'var(--muted)'}">체인 안 ${ln.ref.strongN}</tspan>`
+        + `<tspan x="6" dy="12" style="font-size:9.5px">겹침 ${ln.list.length}</tspan></text>`;
+      return;
+    }
+    const lv = ln.key, sl = AS[lv], ip = sl.ip.split(/[\s,]+/)[0], pl = R.PL[lv];
     if (k % 2) g += `<rect x="0" y="${y}" width="${W}" height="${h}" fill="var(--panel2)" opacity=".5"/>`;
     g += `<line x1="0" x2="${W}" y1="${y + h - 0.5}" y2="${y + h - 0.5}" stroke="var(--line2)"/>`;
     const addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
@@ -1004,16 +1078,18 @@ function drawGantt(ch) {
     g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
     if (x.e != null && x.role !== 'fetch') g += `<line x1="${x2}" x2="${x2}" y1="${y}" y2="${py}" stroke="var(--faint)" stroke-dasharray="3 3"/>`;
   }
-  for (const x of ch.list) {
-    const x1 = x._x1, x2 = x._x2, w = x2 - x1, y = barY(x), c = ROLE[x.role].c;
-    const tip = `${AS[x.lv].name} ${ROLE[x.role].t}${isPty(x) ? '' : ' · pty 아님(sftp/scp 등 가능)'}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}${x.e == null ? '' : ' (' + fDur(x.e - x.s, x.sec) + ')'}\n${x.user} ${x.tty} ${x.host}`;
-    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${x.role === 'other' ? .55 : .9}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
+  for (const ln of lanes) for (const x of ln.list) {
+    const x1 = x._x1, x2 = x._x2, w = x2 - x1, y = barY(x), c = ROLE[x.role].c, ref = x.role === 'ref';
+    const what = ref ? `${x.srv} 비교 서버 로그인 — ${x.strong ? '체인 마지막 서버 세션 안' : '체인 시간대와 겹침'}` : `${AS[x.lv].name} ${ROLE[x.role].t}`;
+    const tip = `${what}${isPty(x) ? '' : ' · pty 아님(sftp/scp 등 가능)'}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}${x.e == null ? '' : ' (' + fDur(x.e - x.s, x.sec) + ')'}\n${x.user} ${x.tty} ${x.host}`;
+    const op = ref ? (x.strong ? .9 : .28) : x.role === 'other' ? .55 : .9;
+    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${op}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
     if (!isPty(x)) g += `<rect x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="url(#hatch)" pointer-events="none"/>`;
-    const label = `${fT(x.s)} ${x.tty || ''}`.trim();
-    if (w > 92) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${esc(label)}</text>`;
-    else if (w > 40) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
+    const label = `${fT(x.s)} ${x.tty || ''}`.trim(), inFill = ref && !x.strong ? 'var(--text)' : '#fff';
+    if (w > 92) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:${inFill};font-weight:600;pointer-events:none">${esc(label)}</text>`;
+    else if (w > 40) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:${inFill};font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
     else g += `<text x="${x2 + 3}" y="${y + BH / 2 + 4}" style="fill:${c};font-weight:600;pointer-events:none">${esc(label)}</text>`;
-    if (w > 150 && x.e != null) g += `<text x="${x2 - 4}" y="${y + BH / 2 + 4}" text-anchor="end" style="fill:#fff;pointer-events:none">${fT(x.e)}</text>`;
+    if (w > 150 && x.e != null) g += `<text x="${x2 - 4}" y="${y + BH / 2 + 4}" text-anchor="end" style="fill:${inFill};pointer-events:none">${fT(x.e)}</text>`;
     g += '</g>';
   }
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
