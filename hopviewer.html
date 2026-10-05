@@ -138,6 +138,26 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .dtable td.act{min-width:240px}
 .dtable .raw{max-width:220px}
 tr.hl td{background:var(--accent-bg)}
+.dbgbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line)}
+.dbg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.dbg.one{grid-template-columns:minmax(0,1fr)}
+.dp{min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+.dp:last-child{border-right:0}
+.dph{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dph select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-weight:700}
+.dps{height:min(68vh,620px);overflow:auto;position:relative}
+.dps td{padding:4px 8px;white-space:nowrap}
+.dps tr.dh td{background:var(--bg);color:var(--muted);font-weight:700;font-size:11.5px;padding:5px 8px}
+.dps tr.rw{cursor:pointer}
+.dps tr.rw:hover td{background:var(--panel2)}
+.dps tr.rw.dim td{opacity:.32}
+.dps tr.rw.hit td{font-weight:700;background:var(--accent-bg);color:var(--text)}
+.dps tr.rw.part td{background:rgba(233,192,74,.10)}
+.dps tr.rw.sel td{background:var(--accent-bg);font-weight:700}
+.dps tr.rw.sel td:first-child{box-shadow:inset 3px 0 var(--accent)}
+.dbar{position:relative;width:120px;height:8px;background:var(--line2);border-radius:2px}
+.dbar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:2px;min-width:2px}
+@media (max-width:900px){.dbg{grid-template-columns:minmax(0,1fr)}.dp{border-right:0;border-bottom:1px solid var(--line)}}
 .kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
 @media (max-width:900px){
   .ws{display:block;height:auto}
@@ -209,7 +229,7 @@ tr.selrow td{background:var(--accent-bg)}
     <section class="panel" id="detail"></section>
   </div>
 
-  <h2 class="sect">4. 서버별 전체 세션 <small>행을 누르면 그 세션이 속한 체인으로 이동</small></h2>
+  <h2 class="sect">4. 노드 로그 보기 · 비교 <small>한 노드의 last 로그를 날짜별로 보기 + 왼쪽 세션을 누르면 오른쪽 노드에서 그 시간 안에 들어온 로그인을 진하게 표시 (반대 방향도 가능) — 체인 판정과 별개로 원본 세션 그대로</small></h2>
   <div class="panel" id="all"></div>
 
   <div class="panel help" style="margin-top:26px">
@@ -227,7 +247,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, tab: 0, onlyMatched: false, q: '', cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '' }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGH';
 const MONS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const WD = 'Sun Mon Tue Wed Thu Fri Sat'.split(' ');
@@ -626,7 +646,7 @@ function renderSlots() {
       if (a.dataset.act === 'pick') fin.click();
       if (a.dataset.act === 'tog') { toggleSlot(sl); return; }
       if (a.dataset.act === 'left' || a.dataset.act === 'right') { moveSlot(k, a.dataset.act === 'left' ? -1 : 1); return; }
-      if (a.dataset.act === 'del') { S.slots.splice(k, 1); renderSlots(); run(); }
+      if (a.dataset.act === 'del') { S.slots.splice(k, 1); S.dbg.side = null; S.dbg.l = 0; S.dbg.r = 1; renderSlots(); run(); }
       if (a.dataset.act === 'rmf') { sl.files.splice(+a.dataset.i, 1); rebuildSlot(sl); renderSlots(); run(); }
     });
     fin.addEventListener('change', () => addFiles(sl, fin.files));
@@ -695,7 +715,7 @@ const nm = k => esc(AS[k]?.name || NAMES[k]);
 const splitIps = v => String(v || '').split(/[\s,]+/).filter(Boolean);
 const candN = x => x.cands.length + (x.candMore ? '+' : '');
 // 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
-const CAP_CHAINS = 120, CAP_EVENTS = 1500, CAP_ROWS = 1000;
+const CAP_CHAINS = 120, CAP_EVENTS = 1500;
 function chainPath(ch) { const a = []; for (let k = ch.root.lv; k <= ch.root.lv + ch.depth; k++) a.push(nm(k)); return a.join(' → '); }
 const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치']];
 function isFull(ch) { return ch.root.lv === 0 && ch.depth === AS.length - 1; }
@@ -720,9 +740,10 @@ function moveSlot(k, d) {
   const j = k + d;
   if (j < 0 || j >= S.slots.length) return;
   [S.slots[k], S.slots[j]] = [S.slots[j], S.slots[k]];
-  S.sel = null; S.tab = 0; renderSlots(); run();
+  const D = S.dbg; for (const f of ['l', 'r']) D[f] = D[f] === k ? j : D[f] === j ? k : D[f];
+  S.sel = null; renderSlots(); run();
 }
-function toggleSlot(sl) { sl.off = !sl.off; S.sel = null; S.tab = 0; renderSlots(); run(); }
+function toggleSlot(sl) { sl.off = !sl.off; S.sel = null; renderSlots(); run(); }
 function renderChains() {
   renderNodes();
   const box = $('#chains'), seg = $('#cf');
@@ -755,7 +776,7 @@ function select(id) {
   document.querySelectorAll('#chains .ci').forEach(c => c.classList.toggle('on', c.dataset.id === id));
   const on = document.querySelector('#chains .ci.on');
   if (on) on.scrollIntoView({ block: 'nearest' });
-  renderDetail(); renderAll();
+  renderDetail();
 }
 
 /* ───────── 렌더: 상세(간트 + 패턴 + 타임테이블) ───────── */
@@ -861,38 +882,117 @@ function drawGantt(ch) {
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
 }
 
-/* ───────── 렌더: 서버별 전체 세션 ───────── */
-function renderAll() {
-  const box = $('#all'), N = AS.length;
-  if (S.tab >= N) S.tab = 0;
-  const L = R.L[S.tab] || [], q = S.q.toLowerCase();
-  const sel = R.chains.find(c => c.root.id === S.sel), inSel = new Set(sel ? sel.list.map(x => x.id) : []);
-  const rows = L.filter(x => (!S.onlyMatched || x.parent || x.kids.length) && (!q || (x.raw + ' ' + x.user + ' ' + x.host).toLowerCase().includes(q)));
-  box.innerHTML = `
-    <div class="tabs">${AS.map((sl, k) => `<button data-k="${k}" class="${k === S.tab ? 'on' : ''}">${esc(sl.name)}<span class="n">${R.L[k].length}</span></button>`).join('')}</div>
-    <div class="tbar"><input type="text" id="q" placeholder="검색 (계정·IP·tty)" value="${esc(S.q)}" style="width:220px">
-      <label class="ctl"><input type="checkbox" id="om"${S.onlyMatched ? ' checked' : ''}> 연결된 세션만</label>
-      <span class="spacer"></span><span class="hint">${rows.length} / ${L.length}개 · 파란 행 = 지금 고른 체인</span></div>
-    <div class="scroll"><table><thead><tr><th>로그인</th><th>로그아웃</th><th>지속</th><th>계정</th><th>tty</th><th>출발지</th><th>앞 서버(${S.tab ? nm(S.tab - 1) : '-'}) 세션</th><th>다음 서버(${S.tab < N - 1 ? nm(S.tab + 1) : '-'}) 접속</th><th>원문</th></tr></thead>
-    <tbody>${rows.length ? rows.slice(0, CAP_ROWS).map(x => `<tr class="clk${inSel.has(x.id) ? ' selrow' : ''}${x.parent || x.kids.length ? '' : ' out'}" data-id="${x.id}">
-      <td class="tm">${fDT(x.s, x.sec)}</td>
-      <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : fDT(x.e, x.sec).slice(fD(x.e) === fD(x.s) ? 11 : 0)}</td>
+/* ───────── 렌더: 노드 로그 보기 · 비교 (디버그) ─────────
+   체인 알고리즘과 상관없이 원본 세션을 그대로 보여준다. 한쪽 세션을 누르면 다른 쪽에서
+   그 시간 안에 들어간 세션(포함)을 진하게, 경계에 걸친 세션(걸침)은 따로, 나머지는 흐리게 */
+const CAP_DBG = 800;
+function rel(p, c) {                 // p(앞 노드) 시간 안에 c(다음 노드)가 들어가나
+  const tol = S.tol * 1000, pEnd = p.eHi == null ? Infinity : p.eHi;
+  const cEndLo = c.e == null ? (c.endKind === 'gone' ? c.s : Infinity) : c.e;
+  if (c.sHi >= p.s - tol && cEndLo <= pEnd + tol) return 'hit';
+  if (c.s <= pEnd && (c.e == null ? Infinity : c.e) >= p.s) return 'part';
+  return '';
+}
+function dbgSel() {
+  const D = S.dbg, k = D.side === 'l' ? D.l : D.side === 'r' ? D.r : -1;
+  return k >= 0 && S.slots[k] ? S.slots[k].sessions[D.idx] || null : null;
+}
+function dayBar(x) {
+  const day = 86400000, d0 = Math.floor(x.s / day) * day, end = x.e == null ? d0 + day : Math.min(x.e, d0 + day);
+  const l = (x.s - d0) / day * 100, w = Math.max(0.4, (end - x.s) / day * 100);
+  const more = x.e == null || x.e > d0 + day;
+  return `<div class="dbar" title="${fT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}"><i style="left:${l}%;width:${w}%${more ? ';border-radius:2px 0 0 2px;opacity:.7' : ''}"></i></div>`;
+}
+function dbgPanel(side) {
+  const D = S.dbg, k = side === 'l' ? D.l : D.r, sl = S.slots[k];
+  const ss = sl.sessions, q = (side === 'l' ? D.ql : D.qr).trim().toLowerCase();
+  const selX = dbgSel(), other = D.side && D.side !== side && D.r >= 0 && selX;
+  const mark = other ? ss.map(x => side === 'r' ? rel(selX, x) : rel(x, selX)) : null;
+  const idx = [];
+  for (let i = 0; i < ss.length; i++) {
+    const x = ss[i];
+    if (!q || (fDT(x.s) + ' ' + x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q)) idx.push(i);
+  }
+  let focus = -1;
+  if (D.side === side) focus = idx.indexOf(D.idx);
+  else if (mark) { focus = idx.findIndex(i => mark[i] === 'hit'); if (focus < 0) focus = idx.findIndex(i => mark[i] === 'part'); }
+  const start = focus < 0 ? 0 : Math.max(0, Math.min(focus - 150, idx.length - CAP_DBG)), view = idx.slice(start, start + CAP_DBG);
+  const pos = AS.indexOf(sl);
+  let rows = '', prevDay = '';
+  for (const i of view) {
+    const x = ss[i], day = fD(x.s);
+    if (day !== prevDay) { rows += `<tr class="dh"><td colspan="8">${day} (${'일월화수목금토'[new Date(x.s).getUTCDay()]})</td></tr>`; prevDay = day; }
+    const m = mark ? mark[i] : null, ch = pos >= 0 && R ? R.byId.get(pos + ':' + i) : null;
+    const cls = (D.side === side && D.idx === i ? ' sel' : '') + (m === 'hit' ? ' hit' : m === 'part' ? ' part' : m === '' ? ' dim' : '');
+    rows += `<tr class="rw${cls}" data-i="${i}" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">
+      <td class="tm">${fT(x.s, x.sec)}</td>
+      <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : (fD(x.e) === day ? '' : fD(x.e).slice(5) + ' ') + fT(x.e, x.sec)}</td>
       <td class="tm dim">${x.e == null ? '' : fDur(x.e - x.s, x.sec)}</td>
-      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td>
-      <td class="mono">${esc(x.host)}${ipBadge(x, true)}</td>
-      <td class="tm">${x.parent ? `${fT(x.parent.s, x.parent.sec)}~${x.parent.e == null ? '' : fT(x.parent.e, x.parent.sec)}${x.cands.length > 1 ? ` <span class="bd warn">후보 ${candN(x)}</span>` : ''}` : S.tab ? '<span class="dim">없음</span>' : ''}</td>
-      <td>${x.kids.length ? `<span class="bd acc">${x.kids.length}건</span>` : ''}</td>
-      <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`).join('') : '<tr><td colspan="9" class="empty">세션 없음</td></tr>'}${rows.length > CAP_ROWS ? `<tr><td colspan="9" class="empty">${rows.length}개 중 ${CAP_ROWS}개만 표시 — 검색으로 좁혀 보세요</td></tr>` : ''}</tbody></table></div>`;
-  box.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { S.tab = +b.dataset.k; renderAll(); });
-  const qi = box.querySelector('#q');
-  qi.oninput = () => { S.q = qi.value; renderAll(); const n = $('#q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
-  box.querySelector('#om').onchange = e => { S.onlyMatched = e.target.checked; renderAll(); };
-  box.querySelectorAll('tr.clk').forEach(tr => tr.onclick = () => {
-    const ch = R.byId.get(tr.dataset.id); if (!ch) return;
-    if (!S.shown.includes(ch)) { S.cf = 'all'; S.cq = ''; $('#cq').value = ''; S.sel = ch.root.id; renderChains(); }
-    select(ch.root.id);
-    $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td><td class="mono">${esc(x.host)}${m === 'part' ? ' <span class="bd warn">걸침</span>' : ''}</td>
+      <td>${dayBar(x)}</td>
+      <td>${ch ? `<a data-ch="${ch.root.id}" title="이 세션이 들어간 체인 #${ch.no} 보기">#${ch.no}</a>` : ''}</td></tr>`;
+  }
+  const opts = S.slots.map((s2, j) => `<option value="${j}"${j === k ? ' selected' : ''}>${esc(s2.name)}${s2.off ? ' (꺼짐)' : ''}</option>`).join('')
+    + (side === 'r' ? `<option value="-1">없음 (한 노드만)</option>` : '');
+  const nHit = mark ? mark.filter(v => v === 'hit').length : 0, nPart = mark ? mark.filter(v => v === 'part').length : 0;
+  return `<div class="dp">
+    <div class="dph"><select data-side="${side}">${opts}</select>
+      <span class="hint">${ss.length}개${q ? ` · 검색 ${idx.length}개` : ''}${mark ? ` · <b style="color:var(--accent)">포함 ${nHit}</b> · 걸침 ${nPart}` : ''}</span>
+      <span style="flex:1"></span><input type="text" id="dq-${side}" placeholder="검색 (날짜·계정·IP·tty)" value="${esc(side === 'l' ? D.ql : D.qr)}" style="width:170px"></div>
+    <div class="dps" data-side="${side}"><table>
+      <thead><tr><th>로그인</th><th>로그아웃</th><th>지속</th><th>계정</th><th>tty</th><th>출발지</th><th>하루 중 위치 (0~24시)</th><th>체인</th></tr></thead>
+      <tbody>${start ? `<tr><td colspan="8" class="empty">위로 ${start}개 생략 — 검색으로 좁히세요</td></tr>` : ''}${rows || '<tr><td colspan="8" class="empty">세션 없음</td></tr>'}${idx.length > start + view.length ? `<tr><td colspan="8" class="empty">아래로 ${idx.length - start - view.length}개 생략 — 검색으로 좁히세요</td></tr>` : ''}</tbody></table></div></div>`;
+}
+function renderAll() {
+  const box = $('#all'), D = S.dbg, N = S.slots.length;
+  if (D.l >= N) D.l = 0;
+  if (D.r >= N) D.r = Math.min(D.l + 1, N - 1);
+  const selX = dbgSel();
+  if (D.side && !selX) { D.side = null; D.idx = -1; }
+  const keep = {};                  // 누른 쪽 스크롤 위치 유지
+  box.querySelectorAll('.dps').forEach(el => keep[el.dataset.side] = el.scrollTop);
+  const nmS = k => esc(S.slots[k].name);
+  let sum = '세션 행을 누르면 반대쪽에서 그 시간 안에 들어간 세션이 진하게 표시됩니다.';
+  if (selX && D.r >= 0) sum = D.side === 'l'
+    ? `<b>${nmS(D.l)}</b> ${fDT(selX.s, selX.sec)} ~ ${selX.e == null ? selX.endKind : fT(selX.e, selX.sec)} 세션 안에 들어간 <b>${nmS(D.r)}</b> 로그인`
+    : `<b>${nmS(D.r)}</b> ${fDT(selX.s, selX.sec)} 로그인을 품고 있는 <b>${nmS(D.l)}</b> 세션`;
+  else if (D.r < 0) sum = '한 노드만 보기';
+  box.innerHTML = `
+    <div class="dbgbar"><span class="hint">${sum}</span><span style="flex:1"></span>
+      <span class="hint">허용 오차 ${S.tol}초 적용 · 진하게 = 포함, <span class="bd warn">걸침</span> = 경계에 걸침</span>
+      ${D.r >= 0 ? '<button class="btn" id="dswap" title="왼쪽·오른쪽 노드 바꾸기">⇄</button>' : ''}
+      ${D.side ? '<button class="btn" id="dclr">선택 해제</button>' : ''}</div>
+    <div class="dbg${D.r < 0 ? ' one' : ''}">${dbgPanel('l')}${D.r >= 0 ? dbgPanel('r') : ''}</div>`;
+  box.querySelectorAll('.dps').forEach(el => {
+    const side = el.dataset.side;
+    if (side === D.side && keep[side] != null) el.scrollTop = keep[side];
+    else {
+      const row = el.querySelector('tr.hit, tr.part, tr.sel');
+      if (row) el.scrollTop = Math.max(0, row.offsetTop - 70);
+    }
   });
+  box.querySelectorAll('select[data-side]').forEach(sel => sel.onchange = () => {
+    D[sel.dataset.side] = +sel.value; D.side = null; D.idx = -1; renderAll();
+  });
+  for (const side of ['l', 'r']) {
+    const qi = document.getElementById('dq-' + side); if (!qi) continue;
+    qi.oninput = () => { D['q' + side] = qi.value; renderAll(); const n = document.getElementById('dq-' + side); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  }
+  box.querySelectorAll('.dps').forEach(el => el.onclick = e => {
+    const a = e.target.closest('[data-ch]');
+    if (a) {
+      const ch = R.chains.find(c => c.root.id === a.dataset.ch); if (!ch) return;
+      if (!S.shown.includes(ch)) { S.cf = 'all'; S.cq = ''; $('#cq').value = ''; S.sel = ch.root.id; renderChains(); }
+      select(ch.root.id); $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const tr = e.target.closest('tr.rw'); if (!tr) return;
+    const side = el.dataset.side, i = +tr.dataset.i;
+    if (D.side === side && D.idx === i) { D.side = null; D.idx = -1; } else { D.side = side; D.idx = i; }
+    renderAll();
+  });
+  const sw = $('#dswap'); if (sw) sw.onclick = () => { [D.l, D.r] = [D.r, D.l]; [D.ql, D.qr] = [D.qr, D.ql]; D.side = D.side === 'l' ? 'r' : D.side === 'r' ? 'l' : null; renderAll(); };
+  const cl = $('#dclr'); if (cl) cl.onclick = () => { D.side = null; D.idx = -1; renderAll(); };
 }
 
 /* ───────── 예시 데이터 ───────── */
