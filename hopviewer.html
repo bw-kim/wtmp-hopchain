@@ -80,6 +80,12 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .slot.refm{border-style:dashed;border-color:var(--r-ref)}
 .nd.rf{border-style:dashed;border-color:var(--r-ref);background:none;color:var(--r-ref)}
 .bd.rf{color:var(--r-ref);border-color:currentColor}
+.kp{cursor:pointer;color:var(--faint);font-size:13px;line-height:1}
+.kp:hover,.kp.on{color:var(--warn)}
+.ci .l2.knote{color:var(--text);font-family:var(--sans)}
+.kinfo{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:6px 8px;border-radius:6px;background:var(--panel2)}
+.kinfo b{color:var(--warn)}
+#kpNote{flex:1;min-width:200px}
 .nodes{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
 .nd{border:1px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:6px;padding:0 8px;font-weight:700;cursor:pointer;font-size:12px}
 .nd.no{border-color:var(--line);background:none;color:var(--faint);text-decoration:line-through}
@@ -221,11 +227,19 @@ tr.selrow td{background:var(--accent-bg)}
   <div class="ws" id="ws">
     <aside class="panel">
       <div class="clbar">
-        <div class="nodes" id="nodes"></div>
-        <input type="text" id="org" placeholder="출발 IP 필터 (A 에 접속한 공격자 IP)" title="출발 서버에 접속한 IP. 여러 개, 45.133.1.0/24, 91.240.* 가능">
-        <div class="hint" id="orgInfo"></div>
-        <div class="seg" id="cf"></div>
-        <div class="hint">첫 서버 로그인 시각 순 (오래된 것부터)</div>
+        <div class="seg" id="vtab"></div>
+        <div id="chainCtl" style="display:flex;flex-direction:column;gap:6px">
+          <div class="nodes" id="nodes"></div>
+          <input type="text" id="org" placeholder="출발 IP 필터 (A 에 접속한 공격자 IP)" title="출발 서버에 접속한 IP. 여러 개, 45.133.1.0/24, 91.240.* 가능">
+          <div class="hint" id="orgInfo"></div>
+          <div class="seg" id="cf"></div>
+          <div class="hint">첫 서버 로그인 시각 순 (오래된 것부터) · ☆ 를 누르면 킵</div>
+        </div>
+        <div id="keepCtl" class="nodes" hidden>
+          <span class="hint" style="flex:1">킵한 순간의 그래프·순서표를 그대로 다시 봅니다</span>
+          <button class="btn" id="kExp" title="킵을 JSON 파일로 저장 (보고서 첨부·다른 PC 로 옮기기)">내보내기</button>
+          <button class="btn" id="kImp">가져오기</button><input type="file" id="kImpFile" accept=".json,application/json" hidden>
+        </div>
         <input type="text" id="cq" placeholder="검색: 날짜(10-03)·IP·계정">
       </div>
       <div class="cllist" id="chains"></div>
@@ -244,6 +258,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>킵</b>: 체인 목록의 ☆ 나 상세 화면의 <b>☆ 킵</b> 을 누르면 그 순간의 체인·비교 라인·순서표와 설정을 그대로 보관합니다. 왼쪽 위 <b>★ 킵</b> 탭에서 나중에 설정을 바꾼 뒤에도 그때 모습 그대로 다시 볼 수 있고, 메모를 달거나 JSON 으로 내보내기·가져오기 할 수 있습니다.<br>
     · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 체인 마지막 서버 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
     · <b>출발 IP</b>: 출발 서버(A) 칸이나 작업 화면 왼쪽 위에 A 에 접속한 공격자 IP 를 넣으면, 그 IP 에서 들어온 A 로그인만 남기고 거기서부터 B·C·D 로 이어 갑니다. 다른 사람이 A 에서 B 로 간 접속은 체인에 붙지 않습니다.<br>
     · <b>갈라지는 경로</b>: 서버 칸의 <b>앞 서버</b>를 고르면 A→B→C→D 와 C→C' 처럼 한 서버에서 여러 서버로 갈라지는 구조도 분석합니다. 기본값 "자동" 은 바로 왼쪽 칸입니다.<br>
@@ -255,7 +270,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -673,7 +688,7 @@ function events(ch) {
     const pty = /^(pts|tty|vc|console|:)/.test(x.tty);
     let txt;
     const dst = x.parent && AS[x.lv].inDst ? ` <span class="hint">· ${esc(P)} 에서 ${esc(splitIps(AS[x.lv].inDst).join(', '))} 로 접속</span>` : '';
-    const skip = x.parent && declaredParent(AS[x.lv]) !== AS[x.parent.lv] ? ` <span class="hint">· 중간 서버 꺼짐 — 직접 접속으로 봄</span>` : '';
+    const skip = (x.skip != null ? x.skip : x.parent && declaredParent(AS[x.lv]) !== AS[x.parent.lv]) ? ` <span class="hint">· 중간 서버 꺼짐 — 직접 접속으로 봄</span>` : '';
     if (x.role === 'start') txt = `<b>${esc(X)}</b> 로그인 — 출발 세션` + (x.host ? ` (출발지 ${esc(x.host)})` : '');
     else if (x.role === 'jump') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (점프)`;
     else if (x.role === 'target') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (최종 서버)`;
@@ -876,6 +891,8 @@ function toggleSlot(sl) {
 }
 const slotState = sl => sl.off ? ['OFF', ' no', '끔'] : sl.ref ? ['비교', ' rf', '비교만 (체인 밖)'] : ['ON', '', '체인'];
 function renderChains() {
+  renderViewTabs();
+  if (S.view === 'keep') { renderKeeps(); return; }
   renderNodes();
   const box = $('#chains'), seg = $('#cf');
   if (S.cf === 'ref' && !R.RF.length) S.cf = 'all';
@@ -899,11 +916,14 @@ function renderChains() {
       + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인 마지막 서버 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
     const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
     return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
-      <div class="l1"><span class="no">#${ch.no}</span><span>${fD(ch.t0).slice(5)} ${fT(ch.t0)} ~ ${end}</span><span class="bds">${pat}${ip}</span></div>
+      <div class="l1"><span class="kp${keepOf(ch) ? ' on' : ''}" data-kp="1" title="${keepOf(ch) ? '킵 해제' : '킵 — 지금 이 그래프·순서표를 보관'}">${keepOf(ch) ? '★' : '☆'}</span><span class="no">#${ch.no}</span><span>${fD(ch.t0).slice(5)} ${fT(ch.t0)} ~ ${end}</span><span class="bds">${pat}${ip}</span></div>
       <div class="l2">${chainPath(ch).replace(/ → /g, '→')} · ${esc(r.user)}${r.host ? '←' + esc(r.host) : ''} · 세션 ${ch.list.length}</div></div>`;
   }).join('') : '<div class="empty">조건에 맞는 체인이 없습니다.</div>';
   $('#clfoot').textContent = list.length > S.shown.length ? `${list.length}개 중 ${S.shown.length}개 표시 — 검색으로 좁히세요` : `${list.length}개`;
-  box.querySelectorAll('.ci').forEach(c => c.onclick = () => select(c.dataset.id));
+  box.querySelectorAll('.ci').forEach(c => c.onclick = e => {
+    if (e.target.closest('[data-kp]')) { const ch = R.chains.find(x => x.root.id === c.dataset.id); if (ch) toggleKeep(ch); return; }
+    select(c.dataset.id);
+  });
 }
 function select(id) {
   S.sel = id;
@@ -913,18 +933,159 @@ function select(id) {
   renderDetail();
 }
 
+/* ───────── 킵: 체인을 고른 그 순간 그대로 보관 ─────────
+   나중에 설정(출발 IP·서버 켜기·허용 오차 등)이 바뀌어도 그때의 체인·비교 라인·순서표를 다시 볼 수 있게
+   체인 세션(부모 관계 포함)·비교 라인 세션·판정 결과·서버 구성을 통째로 저장하고, 볼 때는 그 내용으로 그린다 */
+const KEEP_KEY = 'hopviewer.keeps.v1';
+let KEEPS = [];
+function loadKeeps() {
+  try { const v = JSON.parse(localStorage.getItem(KEEP_KEY) || '[]'); KEEPS = Array.isArray(v) ? v : []; } catch (e) { KEEPS = []; }
+}
+function saveKeeps() {
+  try {
+    localStorage.setItem(KEEP_KEY, JSON.stringify(KEEPS.map(({ _ch, _ctx, ...rest }) => rest)));
+    S.keepWarn = ''; S.keepStored = true;
+  } catch (e) { S.keepStored = false; S.keepWarn = '브라우저에 저장하지 못했습니다 — 이 창을 닫으면 킵이 사라지니 내보내기로 파일에 저장하세요'; }
+}
+// 같은 출발 세션에서 시작한 체인이면 같은 킵으로 본다
+const chainKey = ch => [AS[ch.root.lv].name, ch.root.s, ch.root.user, ch.root.tty, ch.root.host].join('|');
+const keepOf = ch => KEEPS.find(k => k.key === chainKey(ch));
+const slimSess = x => ({ user: x.user, tty: x.tty, host: x.host, s: x.s, sHi: x.sHi, e: x.e, eHi: x.eHi, endKind: x.endKind, sec: x.sec,
+  raw: x.raw, src: x.src, line: x.line, lv: x.lv, id: x.id, role: x.role, dep: x.dep, ipOk: x.ipOk, nc: x.cands.length, cm: !!x.candMore });
+function snapChain(ch) {
+  const idx = new Map(ch.list.map((x, i) => [x, i]));
+  const list = ch.list.map(x => Object.assign(slimSess(x), { p: x.parent ? idx.get(x.parent) : -1,
+    skip: !!(x.parent && declaredParent(AS[x.lv]) !== AS[x.parent.lv]) }));
+  const rl = R.RF.length ? refLanes(ch).map(r => ({ name: r.sl.name, strongN: r.strongN,
+    list: r.list.map(x => Object.assign(slimSess(x), { strong: x.strong, srv: x.srv })) })) : [];
+  const og = originSlot();
+  const topo = plainText(topoText(AS.map((_, j) => j))) + (R.RF.length ? ' · 비교: ' + R.RF.map(r => r.sl.name).join(', ') : '');
+  return {
+    v: 1, key: chainKey(ch), savedAt: Date.now(), note: '', title: `#${ch.no} ${plainText(chainPath(ch))}`,
+    ctx: { AS: AS.map(sl => ({ name: sl.name, ip: sl.ip, inDst: sl.inDst, inSrc: sl.inSrc })), PL: R.PL.slice(), addrs: R.addrs,
+      tol: S.tol, strict: S.strict, origin: og && og.origin ? `${og.name} ← ${og.origin}` : '', topo },
+    chain: { no: ch.no, list, found: ch.found, needed: ch.needed, ordered: ch.ordered, pattern: ch.pattern, ipBad: ch.ipBad, ipGood: ch.ipGood,
+      t0: ch.t0, t1: ch.t1, open: ch.open, rs: R.RF.length ? refStrong(ch) : [],
+      edges: ch.edges.map(e => ({ p: e.p, c: e.c, dep: e.dep, entries: e.entries.map(x => idx.get(x)), J: idx.get(e.J), f: e.f ? idx.get(e.f) : -1 })) },
+    rl,
+  };
+}
+// 저장한 내용으로 체인 객체와 "그때의 분석 결과(AS·R)"를 되살림
+function reviveKeep(k) {
+  if (k._ch) return;
+  const c = k.chain;
+  const list = c.list.map(x => Object.assign({}, x, { cands: new Array(x.nc), candMore: x.cm, kids: [], parent: null }));
+  list.forEach(x => { if (x.p >= 0) { x.parent = list[x.p]; list[x.p].kids.push(x); } });
+  k._ch = { no: c.no, root: list[0], list, found: c.found, needed: c.needed, ordered: c.ordered, pattern: c.pattern, ipBad: c.ipBad, ipGood: c.ipGood,
+    t0: c.t0, t1: c.t1, open: c.open, lvs: new Set(list.map(x => x.lv)), depth: Math.max(0, ...list.map(x => x.dep)),
+    edges: c.edges.map(e => ({ p: e.p, c: e.c, dep: e.dep, entries: e.entries.map(i => list[i]), J: list[e.J], f: e.f >= 0 ? list[e.f] : null })),
+    _rs: c.rs, _rl: k.rl.map(r => ({ sl: { name: r.name }, strongN: r.strongN, list: r.list.map(x => Object.assign({}, x, { cands: [], kids: [], parent: null })) })) };
+  k._ctx = { AS: k.ctx.AS, R: { PL: k.ctx.PL, addrs: k.ctx.addrs, RF: k.rl.map(r => ({ sl: { name: r.name }, ss: [], starts: [] })),
+    chains: [k._ch], byId: new Map(), origin: [], L: [], sugg: [] } };
+}
+function withKeep(k, fn) {
+  reviveKeep(k);
+  const a = AS, r = R; AS = k._ctx.AS; R = k._ctx.R;
+  try { return fn(k._ch); } finally { AS = a; R = r; }
+}
+function toggleKeep(ch) {
+  const k = keepOf(ch);
+  if (k) KEEPS = KEEPS.filter(x => x !== k); else KEEPS.unshift(snapChain(ch));
+  saveKeeps(); renderChains(); renderDetail();
+}
+function removeKeep(k) {
+  if (k.note && !confirm('메모가 있는 킵입니다. 해제할까요?')) return;
+  KEEPS = KEEPS.filter(x => x !== k); saveKeeps(); renderChains(); renderDetail();
+}
+function renderViewTabs() {
+  const el = $('#vtab');
+  el.innerHTML = `<button data-v="chains" class="${S.view === 'chains' ? 'on' : ''}">체인 목록<span class="n">${R ? R.chains.length : 0}</span></button>`
+    + `<button data-v="keep" class="${S.view === 'keep' ? 'on' : ''}">★ 킵<span class="n">${KEEPS.length}</span></button>`;
+  el.querySelectorAll('button').forEach(b => b.onclick = () => {
+    if (S.view === b.dataset.v) return;
+    S.view = b.dataset.v; S.cq = ''; $('#cq').value = '';
+    renderChains(); renderDetail();
+  });
+  $('#chainCtl').hidden = S.view !== 'chains';
+  $('#keepCtl').hidden = S.view !== 'keep';
+  $('#cq').placeholder = S.view === 'keep' ? '검색: 날짜·경로·메모' : '검색: 날짜(10-03)·IP·계정';
+}
+function renderKeeps() {
+  const box = $('#chains'), q = S.cq.trim().toLowerCase();
+  const list = KEEPS.filter(k => !q || [k.title, k.note, k.ctx.topo, k.ctx.origin, fDT(k.chain.t0)].join(' ').toLowerCase().includes(q));
+  S.keepShown = list;
+  if (!list.some(k => k.key === S.keepSel)) S.keepSel = list[0] ? list[0].key : null;
+  box.innerHTML = list.length ? list.map(k => {
+    const c = k.chain, end = c.open ? '접속 중' : (fD(c.t1) === fD(c.t0) ? '' : fD(c.t1).slice(5) + ' ') + fT(c.t1);
+    const pat = c.pattern ? '<span class="bd ok">역순 ✓</span>' : c.found ? `<span class="bd warn">회수 ${c.found}/${c.needed}</span>` : '';
+    const rf = (c.rs || []).map((n, i) => n ? `<span class="bd rf">${esc(k.rl[i].name)} ${n}</span>` : '').join('');
+    return `<div class="ci${k.key === S.keepSel ? ' on' : ''}" data-key="${esc(k.key)}" title="저장 ${new Date(k.savedAt).toLocaleString('ko-KR')} · ${esc(k.ctx.topo)}">
+      <div class="l1"><span class="kp on" data-del="1" title="킵 해제">★</span><span>${fD(c.t0).slice(5)} ${fT(c.t0)} ~ ${end}</span><span class="bds">${pat}${rf}</span></div>
+      <div class="l2">${esc(k.title)}</div>${k.note ? `<div class="l2 knote">${esc(k.note)}</div>` : ''}</div>`;
+  }).join('') : `<div class="empty">${KEEPS.length ? '검색에 맞는 킵이 없습니다.' : '체인 목록에서 ☆ 를 누르거나 오른쪽 위 <b>☆ 킵</b> 을 누르면<br>그 순간의 그래프·순서표가 여기에 보관됩니다.'}</div>`;
+  $('#clfoot').innerHTML = `킵 ${KEEPS.length}개 · ${S.keepStored === false ? '<b style="color:var(--warn)">저장 안 됨</b>' : '이 브라우저에 저장'}${S.keepWarn ? ` <span style="color:var(--warn)">⚠ ${esc(S.keepWarn)}</span>` : ''}`;
+  box.querySelectorAll('.ci').forEach(el => el.onclick = e => {
+    const k = KEEPS.find(x => x.key === el.dataset.key); if (!k) return;
+    if (e.target.closest('[data-del]')) { removeKeep(k); return; }
+    selectKeep(k.key);
+  });
+}
+function selectKeep(key) {
+  S.keepSel = key;
+  document.querySelectorAll('#chains .ci').forEach(c => c.classList.toggle('on', c.dataset.key === key));
+  const on = document.querySelector('#chains .ci.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+  renderDetail();
+}
+function exportKeeps() {
+  const data = JSON.stringify({ app: 'hopviewer', type: 'keeps', v: 1, exportedAt: new Date().toISOString(), keeps: KEEPS.map(({ _ch, _ctx, ...rest }) => rest) }, null, 1);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+  const d = new Date(); a.download = `hopviewer_keeps_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function importKeeps(file) {
+  let added = 0, skipped = 0;
+  try {
+    const v = JSON.parse(await file.text()), arr = Array.isArray(v) ? v : v && v.keeps;
+    if (!Array.isArray(arr)) throw new Error('킵 파일 형식이 아닙니다');
+    for (const k of arr) {
+      if (!k || !k.key || !k.chain || !Array.isArray(k.chain.list) || !k.ctx) { skipped++; continue; }
+      if (KEEPS.some(x => x.key === k.key)) { skipped++; continue; }
+      KEEPS.push(Object.assign({ note: '', rl: [] }, k)); added++;
+    }
+    KEEPS.sort((a, b) => b.savedAt - a.savedAt);
+    saveKeeps();
+    S.keepWarn = (S.keepWarn ? S.keepWarn + ' · ' : '') + `가져오기: ${added}개 추가${skipped ? `, ${skipped}개 건너뜀(이미 있음·형식 다름)` : ''}`;
+  } catch (e) { S.keepWarn = '가져오기 실패: ' + e.message; }
+  renderChains(); renderDetail();
+}
+
 /* ───────── 렌더: 상세(간트 + 패턴 + 타임테이블) ───────── */
 function renderDetail() {
   const box = $('#detail');
+  if (S.view === 'keep') {
+    const k = KEEPS.find(x => x.key === S.keepSel);
+    if (!k) { box.innerHTML = '<div class="empty">킵한 체인을 고르면 그때의 그래프와 시간 순서표가 나옵니다.</div>'; return; }
+    withKeep(k, ch => detailInto(ch, k));
+    return;
+  }
   const ch = R.chains.find(c => c.root.id === S.sel);
   if (!ch) { box.innerHTML = '<div class="empty">왼쪽에서 체인을 고르면 그래프와 시간 순서표가 나옵니다.</div>'; return; }
+  detailInto(ch, null);
+}
+// k 가 있으면 킵 보기 (AS·R 은 withKeep 이 그때 값으로 바꿔 둔 상태)
+function detailInto(ch, k) {
+  const box = $('#detail');
   const ev = events(ch);
+  const kept = !k && keepOf(ch);
   const verdict = ch.pattern ? '<span class="bd ok">점프 후 역순 회수 패턴 일치</span>' : ch.found ? '<span class="bd warn">부분 일치</span>' : '<span class="bd">점프만 확인</span>';
   box.innerHTML = `
     <div class="dhead">
       <div class="dt"><span class="ttl">#${ch.no} ${chainPath(ch)}</span>${verdict}
         <span class="dim">${fDT(ch.t0, ch.root.sec)} ~ ${ch.open ? '접속 중' : fT(ch.t1, ch.root.sec)}${ch.open ? '' : ' · ' + fDur(ch.t1 - ch.t0)}</span>
-        <span style="flex:1"></span>${R.RF.length ? `<label class="ctl" title="비교 서버 로그인을 순서표에도 끼워 넣기"><input type="checkbox" id="refRows"${S.refRows ? ' checked' : ''}> 비교 서버 행</label>` : ''}<button class="btn" id="copyTsv">표 복사</button><button class="btn" id="csv">CSV 저장</button></div>
+        <span style="flex:1"></span>${R.RF.length ? `<label class="ctl" title="비교 서버 로그인을 순서표에도 끼워 넣기"><input type="checkbox" id="refRows"${S.refRows ? ' checked' : ''}> 비교 서버 행</label>` : ''}${k ? '' : `<button class="btn" id="kpBtn" style="${kept ? 'color:var(--warn)' : ''}" title="${kept ? '킵 해제' : '지금 이 그래프·순서표를 킵 탭에 보관'}">${kept ? '★ 킵됨' : '☆ 킵'}</button>`}<button class="btn" id="copyTsv">표 복사</button><button class="btn" id="csv">CSV 저장</button></div>
+      ${k ? `<div class="kinfo"><b>★ 킵</b><span>저장 ${esc(new Date(k.savedAt).toLocaleString('ko-KR'))}</span><span title="킵할 때의 설정">당시: 허용 오차 ${k.ctx.tol}초${k.ctx.strict ? ' · 출발지 IP 일치만' : ''}${k.ctx.origin ? ' · 출발 IP ' + esc(k.ctx.origin) : ''} · ${esc(k.ctx.topo)}</span>
+        <span style="flex:1"></span><button class="btn" id="kpGo" title="지금 분석 결과에서 같은 출발 세션의 체인을 찾아 2번 목록에서 보기">지금 분석에서 찾기</button><button class="btn" id="kpDel">킵 해제</button>
+        <input type="text" id="kpNote" placeholder="메모 (예: 공격자 2차 유출 구간, 보고서 3.2절)" value="${esc(k.note || '')}"></div>` : ''}
       <div class="steps">${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
     </div>
     <div class="gwrap" id="gantt"></div>
@@ -946,6 +1107,19 @@ function renderDetail() {
       }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
   drawGantt(ch);
   const rr = $('#refRows'); if (rr) rr.onchange = () => { S.refRows = rr.checked; renderDetail(); };
+  const kb = $('#kpBtn'); if (kb) kb.onclick = () => toggleKeep(ch);
+  if (k) {
+    const note = $('#kpNote');
+    note.oninput = () => { k.note = note.value; saveKeeps(); };
+    note.onchange = () => renderKeeps();
+    $('#kpDel').onclick = () => removeKeep(k);
+    $('#kpGo').onclick = () => {        // 이 시점엔 AS·R 이 지금 분석 결과로 돌아와 있음
+      const live = R.chains.find(c => chainKey(c) === k.key);
+      if (!live) { $('#kpGo').textContent = '지금 분석에는 없음 (설정·로그가 바뀜)'; $('#kpGo').disabled = true; return; }
+      S.view = 'chains'; S.cf = 'all'; S.cq = ''; $('#cq').value = ''; S.sel = live.root.id;
+      renderChains(); select(live.root.id);
+    };
+  }
   // 그래프 ↔ 순서표 연동
   const hl = (sid, on) => box.querySelectorAll(`[data-sid="${sid}"]`).forEach(el => el.classList.toggle('hl', on));
   box.onmouseover = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, true); };
@@ -954,12 +1128,13 @@ function renderDetail() {
     const t = e.target.closest('[data-sid]'), row = t && document.getElementById('ev-' + t.dataset.sid);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
-  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), plainText(srvName(e.x)), plainText(e.txt), e.x.user, e.x.tty, e.x.host, e.x.raw]));
+  const rowsData = [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), plainText(srvName(e.x)), plainText(e.txt), e.x.user, e.x.tty, e.x.host, e.x.raw]));
+  const rows = () => rowsData;
   $('#copyTsv').onclick = () => { navigator.clipboard.writeText(rows().map(r => r.join('\t')).join('\n')); $('#copyTsv').textContent = '복사됨'; };
   $('#csv').onclick = () => {
     const csv = '﻿' + rows().map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `hop_timeline_${fD(ch.t0)}_${ch.no}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    a.download = `hop_${k ? 'keep' : 'timeline'}_${fD(ch.t0)}_${ch.no}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 }
 function steps(ch) {
@@ -1327,7 +1502,15 @@ function sampleData() {
   document.addEventListener('keydown', e => {
     if ((e.target.closest && e.target.closest('input,textarea,select')) || e.ctrlKey || e.metaKey || e.altKey) return;
     const d = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
-    if (!d || !S.shown.length) return;
+    if (!d) return;
+    if (S.view === 'keep') {
+      const L = S.keepShown; if (!L.length) return;
+      e.preventDefault();
+      const i = L.findIndex(k => k.key === S.keepSel), n = L[Math.min(L.length - 1, Math.max(0, i + d))];
+      if (n && n.key !== S.keepSel) selectKeep(n.key);
+      return;
+    }
+    if (!S.shown.length) return;
     e.preventDefault();
     const i = S.shown.findIndex(c => c.root.id === S.sel);
     const n = S.shown[Math.min(S.shown.length - 1, Math.max(0, i + d))];
@@ -1335,7 +1518,14 @@ function sampleData() {
   });
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => e.preventDefault());
-  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) drawGantt(ch); }, 150); });
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => {
+    if (S.view === 'keep') { const k = KEEPS.find(x => x.key === S.keepSel); if (k) withKeep(k, ch => drawGantt(ch)); return; }
+    const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) drawGantt(ch);
+  }, 150); });
+  loadKeeps();
+  $('#kExp').onclick = exportKeeps;
+  $('#kImp').onclick = () => $('#kImpFile').click();
+  $('#kImpFile').onchange = e => { const f = e.target.files[0]; if (f) importKeeps(f); e.target.value = ''; };
   S.slots = [0, 1, 2, 3].map(k => newSlot(NAMES[k]));
   renderSlots(); run();
 })();
