@@ -22,6 +22,7 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
 a{color:var(--accent);cursor:pointer;text-decoration:none}
@@ -68,6 +69,10 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .slot textarea{width:100%;height:84px;resize:vertical;font-family:var(--mono);font-size:11.5px;white-space:pre}
 .info{font-size:11.5px;color:var(--muted);line-height:1.6}
+.hop{border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-direction:column;gap:6px}
+.hoph{font-size:11.5px;font-weight:600;color:var(--accent)}
+.sg{font-size:11px;color:var(--muted)}
+.sg a{font-family:var(--mono)}
 .info .w{color:var(--warn)}
 .info .sg a{font-family:var(--mono)}
 .addcol{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;gap:6px;padding-left:12px}
@@ -200,6 +205,7 @@ tr.selrow td{background:var(--accent-bg)}
     · 한 부모 아래에서 <b>먼저 들어간 세션이 끝난 뒤(exit 로 복귀한 뒤) 다시 생긴 세션</b>은 "재접속 — 파일 가져오기(sftp) 추정"으로 표시합니다. D→C, C→B, B→A 순서로 재접속이 이어지면 <b>역순 회수 패턴</b>으로 판정합니다.<br>
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
+    · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
     · 서버마다 시계가 다르면 각 칸의 <b>시간 보정(초)</b>에 더할 값을 넣으세요(예: B 시계가 90초 빠르면 -90). 연도 없는 last 출력은 <code>wtmp begins</code> 줄 → 요일 순으로 연도를 추정하며, 연도 칸에 직접 적을 수도 있습니다.<br>
     · <code>/var/log/lastlog</code> 는 계정별 마지막 1회만 있어 이 분석에 쓸 수 없습니다. <code>last -F -i -f /var/log/wtmp</code> 출력이나 <code>wtmp</code>(·<code>wtmp.1</code>) 파일을 넣으세요.
   </div>
@@ -222,7 +228,7 @@ const ROLE = {
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
-const newSlot = name => ({ name, ip: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
+const newSlot = name => ({ name, ip: '', inDst: '', inSrc: '', year: '', corr: 0, files: [], paste: '', sessions: [], warns: [], notes: [] });
 
 /* ───────── 시간 표시 (모든 시각은 '표시 시간대 벽시계' ms 를 UTC 필드로 저장) ───────── */
 const fD = t => { const d = new Date(t); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
@@ -423,14 +429,25 @@ function rebuildSlot(sl) {
 
 /* ───────── 분석 ───────── */
 let R = null;  // 분석 결과
-function hostMatch(h, ips) {
-  if (!h || !ips.length) return null;
-  return ips.some(x => x === h || (h.length >= 12 && x.startsWith(h)) || (x.length >= 12 && h.startsWith(x)));
+// 홉 k→k+1: k+1 의 last 에 찍히는 k 의 출발지 후보
+//   지정 = k+1 칸의 "last 에 찍히는 k 의 IP", 실IP = k 의 실제 IP, NAT = k 로 들어올 때 쓰인 k 의 NAT 주소
+function hopAddrs(k) {
+  const a = [], add = (v, kind) => splitIps(v).forEach(ip => { if (!a.some(x => x.ip === ip)) a.push({ ip, kind }); });
+  add(S.slots[k + 1]?.inSrc, '지정'); add(S.slots[k].ip, '실IP'); add(S.slots[k].inDst, 'NAT');
+  return a;
 }
+function hostMatch(h, addrs) {      // 맞으면 종류(문자열), 안 맞으면 false, 비교할 주소가 없으면 null
+  if (!h || !addrs.length) return null;
+  const m = addrs.find(({ ip: x }) => x === h || (h.length >= 12 && x.startsWith(h)) || (x.length >= 12 && h.startsWith(x)));
+  return m ? m.kind : false;
+}
+const ipBadge = (x, short) => typeof x.ipOk === 'string'
+  ? ` <span class="bd ok" title="출발지가 ${esc(x.ipOk)} 주소와 일치">IP✓${short ? '' : ' ' + esc(x.ipOk)}</span>`
+  : x.ipOk === false ? ` <span class="bd bad" title="기대한 주소: ${esc(hopAddrs(x.lv - 1).map(a => a.ip + '(' + a.kind + ')').join(', '))}">IP 불일치</span>` : '';
 function analyze() {
   const tol = S.tol * 1000, N = S.slots.length;
   const L = S.slots.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
-  const ips = S.slots.map(sl => sl.ip.split(/[\s,]+/).filter(Boolean));
+  const ips = S.slots.map((sl, k) => k < N - 1 ? hopAddrs(k) : []);
   const sugg = S.slots.map(() => new Map());
   const end = x => x.eHi == null ? Infinity : x.eHi;
   for (let k = 0; k < N - 1; k++) {
@@ -513,7 +530,7 @@ function buildChain(root, tol) {
   const found = fetches.filter(x => x.f).length;
   const pattern = depth >= 2 && found === depth && ordered;
   const ipBad = list.filter(x => x.ipOk === false).length;
-  const ipGood = list.filter(x => x.ipOk === true).length;
+  const ipGood = list.filter(x => typeof x.ipOk === 'string').length;
   let t0 = Infinity, t1 = root.e ?? 0;
   for (const x of list) { t0 = Math.min(t0, x.s); t1 = Math.max(t1, x.e == null ? x.s : x.e); }
   return { root, list, path, depth, fetches, found, ordered, pattern, ipBad, ipGood,
@@ -530,12 +547,13 @@ function events(ch) {
     const X = nm(x.lv), P = x.lv > 0 ? nm(x.lv - 1) : '';
     const pty = /^(pts|tty|vc|console|:)/.test(x.tty);
     let txt;
+    const dst = x.lv > 0 && S.slots[x.lv].inDst ? ` <span class="hint">· ${esc(P)} 에서 ${esc(splitIps(S.slots[x.lv].inDst).join(', '))} 로 접속</span>` : '';
     if (x.role === 'start') txt = `<b>${esc(X)}</b> 로그인 — 출발 세션` + (x.host ? ` (출발지 ${esc(x.host)})` : '');
     else if (x.role === 'jump') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (점프)`;
     else if (x.role === 'target') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (최종 서버)`;
     else if (x.role === 'fetch') txt = `<b>${esc(P)} → ${esc(X)}</b> 재접속 — <b style="color:var(--r-fetch)">파일 가져오기(sftp) 추정</b>` + (pty ? ' <span class="hint">· tty 가 pty 라 ssh 재접속일 수도</span>' : '');
     else txt = `<b>${esc(P)} → ${esc(X)}</b> 접속 <span class="hint">· 다른 세션이 열려 있는 동안 생긴 별도 접속</span>`;
-    ev.push({ t: x.s, kind: 0, x, txt });
+    ev.push({ t: x.s, kind: 0, x, txt: txt + (x.role === 'start' ? '' : dst) });
     if (x.e != null) {
       let o;
       if (x.role === 'start') o = `<b>${esc(X)}</b> 로그아웃 — 작업 종료`;
@@ -567,7 +585,11 @@ function renderSlots() {
     d.innerHTML = `
       <div class="sh"><span class="lvn">${k + 1}</span><input type="text" class="nm" value="${esc(sl.name)}" title="서버 이름">
         ${S.slots.length > 2 ? '<button class="xbtn" data-act="del" title="이 서버 칸 삭제">×</button>' : ''}</div>
-      <label>이 서버 IP·호스트명 <span class="hint">(선택, 다음 서버의 출발지와 비교)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.0.0.5, web01"></label>
+      <label>이 서버 실제 IP <span class="hint">(서버 안에서 ip addr 로 보이는 주소, 선택)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.10.2.20"></label>
+      ${k ? `<div class="hop"><div class="hoph">← <span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 에서 들어올 때</div>
+        <label><span><span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 가 접속한 이 서버 주소 <span class="hint">(NAT·공인 IP 등, 참고용)</span></span><input type="text" class="indst" value="${esc(sl.inDst)}" placeholder="예: 203.0.113.20"></label>
+        <label><span>이 서버 last 에 찍히는 <span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 의 IP <span class="hint">(출발지 비교에 사용)</span></span><input type="text" class="insrc" value="${esc(sl.inSrc)}" placeholder="비우면 앞 서버 실제·NAT IP 로 비교"></label>
+        <div class="sg" id="sg${k}"></div></div>` : ''}
       <div class="row2">
         <label>연도 <input type="text" class="yr" value="${esc(sl.year)}" placeholder="자동"></label>
         <label>시간 보정(초) <input type="number" class="corr" value="${esc(sl.corr)}" step="1"></label>
@@ -591,6 +613,7 @@ function renderSlots() {
     const on = (sel, f, ev = 'input') => d.querySelector(sel).addEventListener(ev, e => { f(e.target.value); schedule(sl); });
     on('.nm', v => sl.name = v);
     on('.ip', v => sl.ip = v);
+    if (k) { on('.indst', v => sl.inDst = v); on('.insrc', v => sl.inSrc = v); }
     on('.yr', v => { sl.year = v; sl.dirty = true; });
     on('.corr', v => { sl.corr = v; sl.dirty = true; });
     on('.paste', v => { sl.paste = v; sl.dirty = true; });
@@ -605,7 +628,7 @@ function renderFold() {
   const sum = $('#insum'), box = $('#slots');
   box.hidden = S.fold; sum.hidden = !S.fold; $('#fold').textContent = S.fold ? '펼치기' : '접기';
   if (!S.fold) return;
-  sum.innerHTML = S.slots.map((sl, k) => `<span>${k ? '→ ' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
+  sum.innerHTML = S.slots.map((sl, k) => `<span>${k ? '→ ' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.inDst ? ' <span class="mono dim">(NAT ' + esc(sl.inDst) + ')</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
     + `<a style="margin-left:auto" id="unfold">로그 추가·수정</a>`;
   $('#unfold').onclick = () => { S.fold = false; renderFold(); };
 }
@@ -620,14 +643,15 @@ function renderInfo() {
     else h += '<span class="dim">비어 있음</span><br>';
     h += sl.notes.map(n => `<span class="dim">${esc(n)}</span><br>`).join('');
     h += sl.warns.map(n => `<span class="w">⚠ ${esc(n)}</span><br>`).join('');
-    if (R && k < S.slots.length - 1 && R.sugg[k].size) {
-      const top = [...R.sugg[k]].sort((a, b) => b[1] - a[1]).slice(0, 3);
-      h += `<span class="sg">${esc(S.slots[k + 1].name)} 에 찍힌 출발지(시간 일치): ${top.map(([ip, n]) => `<a data-ip="${esc(ip)}" title="이 서버 IP 칸에 넣기">${esc(ip)}</a> ×${n}`).join(', ')}</span>`;
-    }
     el.innerHTML = h;
-    el.querySelectorAll('[data-ip]').forEach(a => a.onclick = () => {
-      const ip = a.dataset.ip, cur = sl.ip.split(/[\s,]+/).filter(Boolean);
-      if (!cur.includes(ip)) { cur.push(ip); sl.ip = cur.join(', '); el.closest('.slot').querySelector('.ip').value = sl.ip; run(); }
+    document.querySelectorAll(`.pn[data-k="${k}"]`).forEach(x => x.textContent = sl.name);
+    const sg = document.getElementById('sg' + k);
+    if (!sg) return;
+    const top = R && R.sugg[k - 1] ? [...R.sugg[k - 1]].sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
+    sg.innerHTML = top.length ? `시간이 맞는 출발지: ${top.map(([ip, n]) => `<a data-ip="${esc(ip)}" title="위 칸에 넣기">${esc(ip)}</a> ×${n}`).join(', ')}` : '';
+    sg.querySelectorAll('[data-ip]').forEach(a => a.onclick = () => {
+      const ip = a.dataset.ip, cur = splitIps(sl.inSrc);
+      if (!cur.includes(ip)) { cur.push(ip); sl.inSrc = cur.join(', '); sg.closest('.slot').querySelector('.insrc').value = sl.inSrc; run(); }
     });
   });
 }
@@ -644,6 +668,7 @@ function schedule() {
 /* ───────── 렌더: 체인 목록 ───────── */
 function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderAll(); }
 const nm = k => esc(S.slots[k]?.name || NAMES[k]);
+const splitIps = v => String(v || '').split(/[\s,]+/).filter(Boolean);
 const candN = x => x.cands.length + (x.candMore ? '+' : '');
 // 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
 const CAP_CHAINS = 120, CAP_EVENTS = 1500, CAP_ROWS = 1000;
@@ -722,7 +747,7 @@ function renderDetail() {
           <td class="tm dim">${prev == null ? '' : fDur(prev, x.sec)}</td>
           <td><span class="sv">${nm(x.lv)}</span></td>
           <td class="act">${e.txt}</td>
-          <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${x.ipOk === false ? ' <span class="bd bad">IP 불일치</span>' : x.ipOk ? ' <span class="bd ok">IP</span>' : ''}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
+          <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${ipBadge(x)}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
           <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`;
       }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
   drawGantt(ch);
@@ -776,7 +801,8 @@ function drawGantt(ch) {
   for (let k = 0; k < nL; k++) {
     const y = yL(lv0 + k), ip = S.slots[lv0 + k].ip.split(/[\s,]+/)[0];
     g += `<line x1="0" x2="${W}" y1="${y + LH - 1}" y2="${y + LH - 1}" stroke="var(--line2)"/>`;
-    g += `<text x="6" y="${y + LH / 2 + (ip ? -1 : 4)}" class="ln">${nm(lv0 + k)}</text>`;
+    const sl = S.slots[lv0 + k], addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
+    g += `<text x="6" y="${y + LH / 2 + (ip ? -1 : 4)}" class="ln">${addr ? `<title>${esc(addr)}</title>` : ''}${nm(lv0 + k)}</text>`;
     if (ip) g += `<text x="6" y="${y + LH / 2 + 11}" style="font-size:9.5px">${esc(ip)}</text>`;
   }
   const BH = LH - 14, BY = lv => yL(lv) + 7;
@@ -814,7 +840,7 @@ function renderAll() {
       <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : fDT(x.e, x.sec).slice(fD(x.e) === fD(x.s) ? 11 : 0)}</td>
       <td class="tm dim">${x.e == null ? '' : fDur(x.e - x.s, x.sec)}</td>
       <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td>
-      <td class="mono">${esc(x.host)}${x.ipOk === false ? ' <span class="bd bad">불일치</span>' : ''}</td>
+      <td class="mono">${esc(x.host)}${ipBadge(x, true)}</td>
       <td class="tm">${x.parent ? `${fT(x.parent.s, x.parent.sec)}~${x.parent.e == null ? '' : fT(x.parent.e, x.parent.sec)}${x.cands.length > 1 ? ` <span class="bd warn">후보 ${candN(x)}</span>` : ''}` : S.tab ? '<span class="dim">없음</span>' : ''}</td>
       <td>${x.kids.length ? `<span class="bd acc">${x.kids.length}건</span>` : ''}</td>
       <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`).join('') : '<tr><td colspan="9" class="empty">세션 없음</td></tr>'}${rows.length > CAP_ROWS ? `<tr><td colspan="9" class="empty">${rows.length}개 중 ${CAP_ROWS}개만 표시 — 검색으로 좁혀 보세요</td></tr>` : ''}</tbody></table></div>`;
@@ -849,13 +875,13 @@ function sampleData() {
       ['ops', 'pts/1', '172.16.5.20', T(2, 14, 10, 0), T(2, 15, 30, 12)],
       ['admin', 'pts/3', '172.16.5.9', T(1, 18, 0, 25), null],
       ['reboot', '', '', T(1, 7, 55, 2)]] },
-    { name: 'B', ip: '10.10.2.20', rows: [
-      ['deploy', 'pts/0', '10.10.1.10', T(3, 9, 5, 30), T(3, 11, 20, 5)],
-      ['deploy', 'notty', '10.10.1.10', T(3, 11, 22, 10), T(3, 11, 24, 55)],
+    { name: 'B', ip: '10.10.2.20', inDst: '203.0.113.20', inSrc: '198.51.100.7', rows: [
+      ['deploy', 'pts/0', '198.51.100.7', T(3, 9, 5, 30), T(3, 11, 20, 5)],
+      ['deploy', 'notty', '198.51.100.7', T(3, 11, 22, 10), T(3, 11, 24, 55)],
       ['svc', 'pts/1', '10.10.8.8', T(3, 8, 0, 0), T(3, 12, 30, 0)],
-      ['deploy', 'pts/0', '10.10.1.10', T(2, 14, 12, 40), T(2, 15, 21, 0)],
-      ['deploy', 'notty', '10.10.1.10', T(2, 15, 23, 10), T(2, 15, 25, 0)],
-      ['backup', 'pts/2', '10.10.1.10', T(4, 3, 0, 0), T(4, 3, 4, 0)]] },
+      ['deploy', 'pts/0', '198.51.100.7', T(2, 14, 12, 40), T(2, 15, 21, 0)],
+      ['deploy', 'notty', '198.51.100.7', T(2, 15, 23, 10), T(2, 15, 25, 0)],
+      ['backup', 'pts/2', '198.51.100.7', T(4, 3, 0, 0), T(4, 3, 4, 0)]] },
     { name: 'C', ip: '10.10.3.30', rows: [
       ['dba', 'pts/0', '10.10.2.20', T(3, 9, 10, 2), T(3, 10, 58, 40)],
       ['dba', 'notty', '10.10.2.20', T(3, 11, 1, 15), T(3, 11, 3, 50)],
@@ -867,7 +893,7 @@ function sampleData() {
       ['root', 'notty', '10.10.3.30', T(3, 10, 33, 40), T(3, 10, 36, 2)],
       ['backup', 'pts/1', '10.10.5.5', T(3, 2, 0, 0), T(3, 2, 10, 0)]] },
   ];
-  S.slots = srv.map(s => Object.assign(newSlot(s.name), { paste: fmt(s.rows, s.full) }));
+  S.slots = srv.map(s => Object.assign(newSlot(s.name), { ip: s.ip, inDst: s.inDst || '', inSrc: s.inSrc || '', paste: fmt(s.rows, s.full) }));
   S.slots.forEach(rebuildSlot);
   S.sel = null; S.fold = true; renderSlots(); run();
   $('#ws').scrollIntoView({ block: 'start' });
