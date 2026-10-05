@@ -69,6 +69,14 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .slot textarea{width:100%;height:84px;resize:vertical;font-family:var(--mono);font-size:11.5px;white-space:pre}
 .info{font-size:11.5px;color:var(--muted);line-height:1.6}
+.slot.off{opacity:.45}
+.slot.off .sh input.nm{text-decoration:line-through}
+.tg{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:0 9px;font-size:11px;font-weight:700;cursor:pointer;color:var(--ok)}
+.tg.no{color:var(--faint)}
+.nodes{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.nd{border:1px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:6px;padding:0 8px;font-weight:700;cursor:pointer;font-size:12px}
+.nd.no{border-color:var(--line);background:none;color:var(--faint);text-decoration:line-through}
+.hop.skip .hoph{color:var(--faint)}
 .hop{border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-direction:column;gap:6px}
 .hoph{font-size:11.5px;font-weight:600;color:var(--accent)}
 .sg{font-size:11px;color:var(--muted)}
@@ -187,7 +195,9 @@ tr.selrow td{background:var(--accent-bg)}
   <div class="ws" id="ws">
     <aside class="panel">
       <div class="clbar">
+        <div class="nodes" id="nodes"></div>
         <div class="seg" id="cf"></div>
+        <div class="hint">첫 서버 로그인 시각 순 (오래된 것부터)</div>
         <input type="text" id="cq" placeholder="검색: 날짜(10-03)·IP·계정">
       </div>
       <div class="cllist" id="chains"></div>
@@ -429,13 +439,18 @@ function rebuildSlot(sl) {
 
 /* ───────── 분석 ───────── */
 let R = null;  // 분석 결과
+let AS = [];   // 분석에 쓰는 켜진 서버 (S.slots 순서 유지). 분석 결과의 lv 는 이 배열의 위치
 // 홉 k→k+1: k+1 의 last 에 찍히는 k 의 출발지 후보
 //   지정 = k+1 칸의 "last 에 찍히는 k 의 IP", 실IP = k 의 실제 IP, NAT = k 로 들어올 때 쓰인 k 의 NAT 주소
+//   중간 서버를 꺼서 건너뛴 구간(A→C)은 C 의 last 에 A 가 직접 찍히므로 "지정" 칸(B 의 IP)은 쓰지 않음
 function hopAddrs(k) {
   const a = [], add = (v, kind) => splitIps(v).forEach(ip => { if (!a.some(x => x.ip === ip)) a.push({ ip, kind }); });
-  add(S.slots[k + 1]?.inSrc, '지정'); add(S.slots[k].ip, '실IP'); add(S.slots[k].inDst, 'NAT');
+  const P = AS[k], D = AS[k + 1];
+  if (D && adjacent(P, D)) add(D.inSrc, '지정');
+  add(P.ip, '실IP'); add(P.inDst, 'NAT');
   return a;
 }
+const adjacent = (a, b) => S.slots.indexOf(b) === S.slots.indexOf(a) + 1;
 function hostMatch(h, addrs) {      // 맞으면 종류(문자열), 안 맞으면 false, 비교할 주소가 없으면 null
   if (!h || !addrs.length) return null;
   const m = addrs.find(({ ip: x }) => x === h || (h.length >= 12 && x.startsWith(h)) || (x.length >= 12 && h.startsWith(x)));
@@ -445,10 +460,11 @@ const ipBadge = (x, short) => typeof x.ipOk === 'string'
   ? ` <span class="bd ok" title="출발지가 ${esc(x.ipOk)} 주소와 일치">IP✓${short ? '' : ' ' + esc(x.ipOk)}</span>`
   : x.ipOk === false ? ` <span class="bd bad" title="기대한 주소: ${esc(hopAddrs(x.lv - 1).map(a => a.ip + '(' + a.kind + ')').join(', '))}">IP 불일치</span>` : '';
 function analyze() {
-  const tol = S.tol * 1000, N = S.slots.length;
-  const L = S.slots.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
-  const ips = S.slots.map((sl, k) => k < N - 1 ? hopAddrs(k) : []);
-  const sugg = S.slots.map(() => new Map());
+  AS = S.slots.filter(sl => !sl.off);
+  const tol = S.tol * 1000, N = AS.length;
+  const L = AS.map((sl, k) => sl.sessions.map((x, i) => Object.assign({}, x, { id: k + ':' + i, lv: k, kids: [], cands: [], parent: null, ipOk: null })));
+  const ips = AS.map((sl, k) => k < N - 1 ? hopAddrs(k) : []);
+  const sugg = AS.map(() => new Map());
   const end = x => x.eHi == null ? Infinity : x.eHi;
   for (let k = 0; k < N - 1; k++) {
     // 앞 서버 세션을 시작시각 순으로 두고, "hi 이하 위치 중 종료시각 ≥ x 인 가장 뒤 세션"을 O(log n) 으로 찾는다
@@ -473,7 +489,7 @@ function analyze() {
     const ch = buildChain(r, tol);
     chains.push(ch);
   }
-  chains.sort((a, b) => b.depth - a.depth || b.score - a.score || a.root.s - b.root.s);
+  chains.sort((a, b) => a.root.s - b.root.s || b.depth - a.depth);   // 첫 노드(출발 세션) 로그인 시각 순
   chains.forEach((c, i) => c.no = i + 1);
   const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
   R = { L, chains, sugg, byId, ips };
@@ -535,25 +551,25 @@ function buildChain(root, tol) {
   for (const x of list) { t0 = Math.min(t0, x.s); t1 = Math.max(t1, x.e == null ? x.s : x.e); }
   return { root, list, path, depth, fetches, found, ordered, pattern, ipBad, ipGood,
     t0, t1,
-    open: list.some(x => x.e == null),
-    score: (pattern ? 100 : 0) + found * 10 + ipGood - ipBad * 5 };
+    open: list.some(x => x.e == null) };
 }
 
 /* 타임테이블 이벤트 */
 function events(ch) {
-  const nm = k => S.slots[k].name || NAMES[k];
+  const nm = k => AS[k].name || NAMES[k];
   const ev = [];
   for (const x of ch.list) {
     const X = nm(x.lv), P = x.lv > 0 ? nm(x.lv - 1) : '';
     const pty = /^(pts|tty|vc|console|:)/.test(x.tty);
     let txt;
-    const dst = x.lv > 0 && S.slots[x.lv].inDst ? ` <span class="hint">· ${esc(P)} 에서 ${esc(splitIps(S.slots[x.lv].inDst).join(', '))} 로 접속</span>` : '';
+    const dst = x.lv > 0 && AS[x.lv].inDst ? ` <span class="hint">· ${esc(P)} 에서 ${esc(splitIps(AS[x.lv].inDst).join(', '))} 로 접속</span>` : '';
+    const skip = x.lv > 0 && !adjacent(AS[x.lv - 1], AS[x.lv]) ? ` <span class="hint">· 중간 서버 꺼짐 — 직접 접속으로 봄</span>` : '';
     if (x.role === 'start') txt = `<b>${esc(X)}</b> 로그인 — 출발 세션` + (x.host ? ` (출발지 ${esc(x.host)})` : '');
     else if (x.role === 'jump') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (점프)`;
     else if (x.role === 'target') txt = `<b>${esc(P)} → ${esc(X)}</b> SSH 접속 (최종 서버)`;
     else if (x.role === 'fetch') txt = `<b>${esc(P)} → ${esc(X)}</b> 재접속 — <b style="color:var(--r-fetch)">파일 가져오기(sftp) 추정</b>` + (pty ? ' <span class="hint">· tty 가 pty 라 ssh 재접속일 수도</span>' : '');
     else txt = `<b>${esc(P)} → ${esc(X)}</b> 접속 <span class="hint">· 다른 세션이 열려 있는 동안 생긴 별도 접속</span>`;
-    ev.push({ t: x.s, kind: 0, x, txt: txt + (x.role === 'start' ? '' : dst) });
+    ev.push({ t: x.s, kind: 0, x, txt: txt + (x.role === 'start' ? '' : dst + skip) });
     if (x.e != null) {
       let o;
       if (x.role === 'start') o = `<b>${esc(X)}</b> 로그아웃 — 작업 종료`;
@@ -581,15 +597,16 @@ function renderSlots() {
   const box = $('#slots'); box.innerHTML = '';
   S.slots.forEach((sl, k) => {
     if (k) { const a = document.createElement('div'); a.className = 'arrow'; a.textContent = '→'; box.appendChild(a); }
-    const d = document.createElement('div'); d.className = 'slot'; d.dataset.k = k;
+    const d = document.createElement('div'); d.className = 'slot' + (sl.off ? ' off' : ''); d.dataset.k = k;
     d.innerHTML = `
       <div class="sh"><span class="lvn">${k + 1}</span><input type="text" class="nm" value="${esc(sl.name)}" title="서버 이름">
+        <button class="tg${sl.off ? ' no' : ''}" data-act="tog" title="분석에 넣기/빼기">${sl.off ? 'OFF' : 'ON'}</button>
         ${S.slots.length > 2 ? '<button class="xbtn" data-act="del" title="이 서버 칸 삭제">×</button>' : ''}</div>
       <label>이 서버 실제 IP <span class="hint">(서버 안에서 ip addr 로 보이는 주소, 선택)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.10.2.20"></label>
-      ${k ? `<div class="hop"><div class="hoph">← <span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 에서 들어올 때</div>
+      ${k ? `<div class="hop${S.slots[k - 1].off ? ' skip' : ''}"><div class="hoph">← <span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 에서 들어올 때</div>
         <label><span><span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 가 접속한 이 서버 주소 <span class="hint">(NAT·공인 IP 등, 참고용)</span></span><input type="text" class="indst" value="${esc(sl.inDst)}" placeholder="예: 203.0.113.20"></label>
         <label><span>이 서버 last 에 찍히는 <span class="pn" data-k="${k - 1}">${esc(S.slots[k - 1].name)}</span> 의 IP <span class="hint">(출발지 비교에 사용)</span></span><input type="text" class="insrc" value="${esc(sl.inSrc)}" placeholder="비우면 앞 서버 실제·NAT IP 로 비교"></label>
-        <div class="sg" id="sg${k}"></div></div>` : ''}
+        <div class="sg" id="sg${k}"></div>${S.slots[k - 1].off && !sl.off ? '<div class="sg">앞 서버가 꺼져 있어 지금은 그 앞의 켜진 서버 실제·NAT IP 로 비교합니다</div>' : ''}</div>` : ''}
       <div class="row2">
         <label>연도 <input type="text" class="yr" value="${esc(sl.year)}" placeholder="자동"></label>
         <label>시간 보정(초) <input type="number" class="corr" value="${esc(sl.corr)}" step="1"></label>
@@ -603,6 +620,7 @@ function renderSlots() {
     d.addEventListener('click', e => {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'pick') fin.click();
+      if (a.dataset.act === 'tog') { toggleSlot(sl); return; }
       if (a.dataset.act === 'del') { S.slots.splice(k, 1); renderSlots(); run(); }
       if (a.dataset.act === 'rmf') { sl.files.splice(+a.dataset.i, 1); rebuildSlot(sl); renderSlots(); run(); }
     });
@@ -628,7 +646,7 @@ function renderFold() {
   const sum = $('#insum'), box = $('#slots');
   box.hidden = S.fold; sum.hidden = !S.fold; $('#fold').textContent = S.fold ? '펼치기' : '접기';
   if (!S.fold) return;
-  sum.innerHTML = S.slots.map((sl, k) => `<span>${k ? '→ ' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.inDst ? ' <span class="mono dim">(NAT ' + esc(sl.inDst) + ')</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
+  sum.innerHTML = S.slots.map((sl, k) => `<span${sl.off ? ' class="dim" style="text-decoration:line-through"' : ''}>${k ? '→ ' : ''}<b>${esc(sl.name)}</b> ${sl.sessions.length}세션${sl.ip ? ' <span class="mono dim">' + esc(sl.ip) + '</span>' : ''}${sl.inDst ? ' <span class="mono dim">(NAT ' + esc(sl.inDst) + ')</span>' : ''}${sl.warns.length ? ' <span style="color:var(--warn)">⚠' + sl.warns.length + '</span>' : ''}</span>`).join('')
     + `<a style="margin-left:auto" id="unfold">로그 추가·수정</a>`;
   $('#unfold').onclick = () => { S.fold = false; renderFold(); };
 }
@@ -647,7 +665,8 @@ function renderInfo() {
     document.querySelectorAll(`.pn[data-k="${k}"]`).forEach(x => x.textContent = sl.name);
     const sg = document.getElementById('sg' + k);
     if (!sg) return;
-    const top = R && R.sugg[k - 1] ? [...R.sugg[k - 1]].sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
+    const pos = AS.indexOf(sl), ok = pos > 0 && adjacent(AS[pos - 1], sl);
+    const top = R && ok && R.sugg[pos - 1] ? [...R.sugg[pos - 1]].sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
     sg.innerHTML = top.length ? `시간이 맞는 출발지: ${top.map(([ip, n]) => `<a data-ip="${esc(ip)}" title="위 칸에 넣기">${esc(ip)}</a> ×${n}`).join(', ')}` : '';
     sg.querySelectorAll('[data-ip]').forEach(a => a.onclick = () => {
       const ip = a.dataset.ip, cur = splitIps(sl.inSrc);
@@ -667,14 +686,14 @@ function schedule() {
 
 /* ───────── 렌더: 체인 목록 ───────── */
 function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderAll(); }
-const nm = k => esc(S.slots[k]?.name || NAMES[k]);
+const nm = k => esc(AS[k]?.name || NAMES[k]);
 const splitIps = v => String(v || '').split(/[\s,]+/).filter(Boolean);
 const candN = x => x.cands.length + (x.candMore ? '+' : '');
 // 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
 const CAP_CHAINS = 120, CAP_EVENTS = 1500, CAP_ROWS = 1000;
 function chainPath(ch) { const a = []; for (let k = ch.root.lv; k <= ch.root.lv + ch.depth; k++) a.push(nm(k)); return a.join(' → '); }
 const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치']];
-function isFull(ch) { return ch.root.lv === 0 && ch.depth === S.slots.length - 1; }
+function isFull(ch) { return ch.root.lv === 0 && ch.depth === AS.length - 1; }
 function filteredChains() {
   const q = S.cq.trim().toLowerCase();
   return R.chains.filter(ch => {
@@ -685,7 +704,15 @@ function filteredChains() {
     return ch.list.some(x => (x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q));
   });
 }
+function renderNodes() {
+  const el = $('#nodes');
+  el.innerHTML = '서버 ' + S.slots.map((sl, k) => `<button class="nd${sl.off ? ' no' : ''}" data-k="${k}" title="눌러서 ${sl.off ? '켜기' : '끄기'}">${esc(sl.name)}</button>`).join('')
+    + `<span style="margin-left:4px">${AS.length >= 2 ? AS.map(x => esc(x.name)).join('→') : ''}</span>`;
+  el.querySelectorAll('.nd').forEach(b => b.onclick = () => toggleSlot(S.slots[+b.dataset.k]));
+}
+function toggleSlot(sl) { sl.off = !sl.off; S.sel = null; S.tab = 0; renderSlots(); run(); }
 function renderChains() {
+  renderNodes();
   const box = $('#chains'), seg = $('#cf');
   const cnt = { all: R.chains.length, full: R.chains.filter(isFull).length, pattern: R.chains.filter(c => c.pattern).length };
   seg.innerHTML = CF.map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
@@ -693,8 +720,8 @@ function renderChains() {
   const list = filteredChains();
   S.shown = list.slice(0, CAP_CHAINS);
   if (!R.chains.length) {
-    const have = S.slots.filter(s => s.sessions.length).length;
-    box.innerHTML = `<div class="empty">${have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
+    const have = AS.filter(s => s.sessions.length).length;
+    box.innerHTML = `<div class="empty">${AS.length < 2 ? '켜진 서버가 2개 이상이어야 합니다. 위의 서버 버튼으로 켜세요.' : have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
     $('#clfoot').textContent = ''; S.sel = null; return;
   }
   if (!R.chains.some(c => c.root.id === S.sel)) S.sel = (S.shown[0] || R.chains[0]).root.id;
@@ -759,7 +786,7 @@ function renderDetail() {
     const t = e.target.closest('[data-sid]'), row = t && document.getElementById('ev-' + t.dataset.sid);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
-  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), S.slots[e.x.lv].name, e.txt.replace(/<[^>]+>/g, ''), e.x.user, e.x.tty, e.x.host, e.x.raw]));
+  const rows = () => [['#', '시각', '출발 후', '서버', '동작', '계정', 'tty', '출발지', '원문']].concat(ev.map((e, i) => [i + 1, e.t == null ? '' : fDT(e.t, e.x.sec), e.t == null ? '' : fDur(e.t - ch.t0, e.x.sec), AS[e.x.lv].name, e.txt.replace(/<[^>]+>/g, ''), e.x.user, e.x.tty, e.x.host, e.x.raw]));
   $('#copyTsv').onclick = () => { navigator.clipboard.writeText(rows().map(r => r.join('\t')).join('\n')); $('#copyTsv').textContent = '복사됨'; };
   $('#csv').onclick = () => {
     const csv = '﻿' + rows().map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -768,7 +795,7 @@ function renderDetail() {
   };
 }
 function steps(ch) {
-  const out = [], p = ch.path, sn = x => S.slots[x.lv].name;
+  const out = [], p = ch.path, sn = x => AS[x.lv].name;
   for (let k = 1; k < p.length; k++)
     out.push({ cls: 'ok', ic: '✓', t: `${sn(p[k - 1])}→${sn(p[k])}`,
       tip: `${sn(p[k - 1])} 세션 안에서 ${sn(p[k])} 로 접속\n${fT(p[k].s, p[k].sec)} ~ ${p[k].e == null ? '…' : fT(p[k].e, p[k].sec)} (${p[k].user}, ${p[k].tty})` });
@@ -799,16 +826,16 @@ function drawGantt(ch) {
     g += `<line x1="${x}" x2="${x}" y1="${TOP - 4}" y2="${H - 2}" stroke="var(--line2)"/><text x="${x}" y="${TOP - 7}" text-anchor="middle">${step >= 86400000 ? fD(t).slice(5) : fT(t)}</text>`;
   }
   for (let k = 0; k < nL; k++) {
-    const y = yL(lv0 + k), ip = S.slots[lv0 + k].ip.split(/[\s,]+/)[0];
+    const y = yL(lv0 + k), ip = AS[lv0 + k].ip.split(/[\s,]+/)[0];
     g += `<line x1="0" x2="${W}" y1="${y + LH - 1}" y2="${y + LH - 1}" stroke="var(--line2)"/>`;
-    const sl = S.slots[lv0 + k], addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
+    const sl = AS[lv0 + k], addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
     g += `<text x="6" y="${y + LH / 2 + (ip ? -1 : 4)}" class="ln">${addr ? `<title>${esc(addr)}</title>` : ''}${nm(lv0 + k)}</text>`;
     if (ip) g += `<text x="6" y="${y + LH / 2 + 11}" style="font-size:9.5px">${esc(ip)}</text>`;
   }
   const BH = LH - 14, BY = lv => yL(lv) + 7;
   for (const x of ch.list) {
     const x1 = X(x.s), x2 = Math.max(x1 + 3, X(x.e == null ? t1 : x.e)), y = BY(x.lv), c = ROLE[x.role].c;
-    const tip = `${S.slots[x.lv].name} ${ROLE[x.role].t}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}\n${x.user} ${x.tty} ${x.host}`;
+    const tip = `${AS[x.lv].name} ${ROLE[x.role].t}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}\n${x.user} ${x.tty} ${x.host}`;
     if (x.parent) {
       const py = BY(x.parent.lv) + BH;
       g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
@@ -824,13 +851,13 @@ function drawGantt(ch) {
 
 /* ───────── 렌더: 서버별 전체 세션 ───────── */
 function renderAll() {
-  const box = $('#all'), N = S.slots.length;
+  const box = $('#all'), N = AS.length;
   if (S.tab >= N) S.tab = 0;
   const L = R.L[S.tab] || [], q = S.q.toLowerCase();
   const sel = R.chains.find(c => c.root.id === S.sel), inSel = new Set(sel ? sel.list.map(x => x.id) : []);
   const rows = L.filter(x => (!S.onlyMatched || x.parent || x.kids.length) && (!q || (x.raw + ' ' + x.user + ' ' + x.host).toLowerCase().includes(q)));
   box.innerHTML = `
-    <div class="tabs">${S.slots.map((sl, k) => `<button data-k="${k}" class="${k === S.tab ? 'on' : ''}">${esc(sl.name)}<span class="n">${R.L[k].length}</span></button>`).join('')}</div>
+    <div class="tabs">${AS.map((sl, k) => `<button data-k="${k}" class="${k === S.tab ? 'on' : ''}">${esc(sl.name)}<span class="n">${R.L[k].length}</span></button>`).join('')}</div>
     <div class="tbar"><input type="text" id="q" placeholder="검색 (계정·IP·tty)" value="${esc(S.q)}" style="width:220px">
       <label class="ctl"><input type="checkbox" id="om"${S.onlyMatched ? ' checked' : ''}> 연결된 세션만</label>
       <span class="spacer"></span><span class="hint">${rows.length} / ${L.length}개 · 파란 행 = 지금 고른 체인</span></div>
@@ -874,6 +901,7 @@ function sampleData() {
       ['kim', 'pts/2', '172.16.5.31', T(3, 10, 15, 44), T(3, 10, 52, 9)],
       ['ops', 'pts/1', '172.16.5.20', T(2, 14, 10, 0), T(2, 15, 30, 12)],
       ['admin', 'pts/3', '172.16.5.9', T(1, 18, 0, 25), null],
+      ['ops', 'pts/1', '172.16.5.20', T(4, 13, 0, 5), T(4, 14, 2, 40)],
       ['reboot', '', '', T(1, 7, 55, 2)]] },
     { name: 'B', ip: '10.10.2.20', inDst: '203.0.113.20', inSrc: '198.51.100.7', rows: [
       ['deploy', 'pts/0', '198.51.100.7', T(3, 9, 5, 30), T(3, 11, 20, 5)],
@@ -887,7 +915,8 @@ function sampleData() {
       ['dba', 'notty', '10.10.2.20', T(3, 11, 1, 15), T(3, 11, 3, 50)],
       ['dba', 'pts/2', '10.10.9.9', T(3, 9, 40, 0), T(3, 9, 44, 30)],
       ['dba', 'pts/0', '10.10.2.20', T(2, 14, 20, 11), T(2, 15, 5, 33)],
-      ['dba', 'notty', '10.10.2.20', T(2, 15, 8, 0), T(2, 15, 9, 30)]] },
+      ['dba', 'notty', '10.10.2.20', T(2, 15, 8, 0), T(2, 15, 9, 30)],
+      ['dba', 'pts/1', '10.10.1.10', T(4, 13, 10, 0), T(4, 13, 40, 0)]] },
     { name: 'D', ip: '10.10.4.40', rows: [
       ['root', 'pts/0', '10.10.3.30', T(3, 9, 15, 20), T(3, 10, 30, 12)],
       ['root', 'notty', '10.10.3.30', T(3, 10, 33, 40), T(3, 10, 36, 2)],
