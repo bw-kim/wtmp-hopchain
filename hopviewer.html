@@ -214,6 +214,7 @@ tr.selrow td{background:var(--accent-bg)}
     </div>
     <div class="spacer"></div>
     <label class="ctl" title="같은 시각으로 볼 허용 오차. last 기본 출력은 분 단위라 60초 이상 권장">허용 오차(초) <input type="number" id="tol" value="60" min="0" step="10"></label>
+    <label class="ctl" title="이보다 길거나 로그아웃 기록이 없는 세션은, 다음 서버 로그인을 품는지 볼 때 시작 후 이 시간까지만 인정합니다. 몇 달씩 열린 세션이 그 기간의 모든 로그인을 자식으로 빨아들이는 것을 막습니다. 0 = 제한 없음">긴 세션 상한(시간) <input type="number" id="maxPar" value="24" min="0" step="1"></label>
     <label class="ctl" title="wtmp 바이너리와 ISO(+시간대) 형식 시각을 이 시간대로 바꿔 보여줍니다. 시간대가 없는 last 텍스트는 적힌 그대로 씁니다">표시 시간대 <input type="text" id="tz" value="+09:00"></label>
     <label class="ctl" title="서버 IP 칸을 채운 경우, 다음 서버 last 의 출발지(FROM)가 그 IP 인 세션만 연결"><input type="checkbox" id="strict"> 출발지 IP 일치만</label>
     <button class="btn" id="sample">예시 데이터</button>
@@ -262,6 +263,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 이랑 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
     · <b>킵</b>: 체인 목록의 ☆ 나 상세 화면의 <b>☆ 킵</b> 을 누르면 그 순간의 체인·비교 라인·순서표와 설정을 그대로 보관합니다. 왼쪽 위 <b>★ 킵</b> 탭에서 나중에 설정을 바꾼 뒤에도 그때 모습 그대로 다시 볼 수 있고, 메모를 달거나 JSON 으로 내보내기·가져오기 할 수 있습니다.<br>
     · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 체인 마지막 서버 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
     · <b>출발 IP</b>: 출발 서버(A) 칸이나 작업 화면 왼쪽 위에 A 에 접속한 공격자 IP 를 넣으면, 그 IP 에서 들어온 A 로그인만 남기고 거기서부터 B·C·D 로 이어 갑니다. 다른 사람이 A 에서 B 로 간 접속은 체인에 붙지 않습니다.<br>
@@ -282,7 +284,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, gdense: false, gfull: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, maxPar: 24, gdense: false, gfull: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -556,6 +558,11 @@ function originMatch(h, pats) {
 }
 // 출발 IP 를 넣을 칸: 켜진 서버 중 앞 서버가 없는 첫 칸 (보통 A)
 const originSlot = () => S.slots.find(sl => !sl.off && !sl.ref && !activeParent(sl)) || null;
+// 부모로 볼 때의 끝 시각: 실제 끝(없으면 무한) 과 "시작 + 긴 세션 상한" 중 이른 쪽
+const capMs = () => S.maxPar > 0 ? S.maxPar * 3600000 : Infinity;
+const parentEnd = p => Math.min(p.eHi == null ? Infinity : p.eHi, p.s + capMs());
+// 그 서버 앞에서(GUI·콘솔) 또는 tmux·screen 안에서 생긴 로컬 세션 — 앞 서버에서 점프해 온 것일 수 없음
+const isLocalLogin = x => /^(seat\d|:\d|tty\d|console$)/.test(x.tty || '') || !x.host || x.host === 'local' || /^:/.test(x.host) || /^tmux\(/.test(x.host);
 function analyze() {
   AS = S.slots.filter(sl => !sl.off && !sl.ref);
   const tol = S.tol * 1000, N = AS.length;
@@ -569,8 +576,8 @@ function analyze() {
     L[j] = L[j].filter(x => { const ok = originMatch(x.host, pats); if (ok) x.ipOk = '출발IP'; return ok; });
     return { pats, kept: L[j].length, total };
   });
-  const sugg = AS.map(() => new Map());
-  const end = x => x.eHi == null ? Infinity : x.eHi;
+  const sugg = AS.map(() => new Map()), localN = AS.map(() => 0);
+  const end = parentEnd;
   const idx = new Map();             // 앞 서버별 검색 구조 (갈라지는 경로면 여러 서버가 같은 앞 서버를 공유)
   for (let j = 0; j < N; j++) {
     const pk = PL[j]; if (pk < 0) continue;
@@ -581,6 +588,7 @@ function analyze() {
     }
     const { P, starts, tree } = idx.get(pk);
     for (const c of L[j]) {
+      if (isLocalLogin(c)) { localN[j]++; continue; }
       c.ipOk = hostMatch(c.host, addrs[j]);
       const cEndLo = c.e == null ? (c.endKind === 'gone' ? c.s : Infinity) : c.e;
       const need = cEndLo - tol, cands = [];
@@ -604,7 +612,7 @@ function analyze() {
   chains.forEach((c, i) => c.no = i + 1);
   const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
   const RF = S.slots.filter(sl => !sl.off && sl.ref).map(sl => ({ sl, ss: sl.sessions, starts: sl.sessions.map(x => x.s) }));
-  R = { L, chains, sugg, byId, addrs, PL, origin, RF };
+  R = { L, chains, sugg, byId, addrs, PL, origin, RF, localN };
 }
 const MAX_CANDS = 20;
 function upperBound(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
@@ -659,11 +667,13 @@ function buildChain(root, tol) {
   const pattern = needed >= 2 && found === needed && ordered;
   const ipBad = list.filter(x => x.ipOk === false).length;
   const ipGood = list.filter(x => typeof x.ipOk === 'string').length;
-  let t0 = Infinity, t1 = root.e ?? 0, depth = 0;
-  for (const x of list) { t0 = Math.min(t0, x.s); t1 = Math.max(t1, x.e == null ? x.s : x.e); depth = Math.max(depth, x.dep); }
+  let t0 = Infinity, t1 = 0, depth = 0;
+  for (const x of list) { t0 = Math.min(t0, x.s); t1 = Math.max(t1, x.e == null ? x.s : Math.min(x.e, x.s + capMs())); depth = Math.max(depth, x.dep); }
+  // 자식을 품은 세션 중 상한보다 길거나 로그아웃 기록이 없는 것
+  const longP = list.filter(x => x.kids.length && S.maxPar > 0 && (x.e == null || x.e - x.s > capMs()));
   return { root, list, depth, edges: E, found, needed, ordered, pattern, ipBad, ipGood,
     lvs: new Set(list.map(x => x.lv)), t0, t1,
-    open: list.some(x => x.e == null) };
+    open: list.some(x => x.e == null), longP };
 }
 // 켜진 서버 위치들로 경로 글자 만들기: "A → B → C → D, C → C'"
 function topoKids(lvs) {
@@ -818,6 +828,7 @@ function renderInfo() {
     h += sl.warns.map(n => `<span class="w">⚠ ${esc(n)}</span><br>`).join('');
     const opos = AS.indexOf(sl), og = R && opos >= 0 && R.origin ? R.origin[opos] : null;
     if (og) h += `<span style="color:var(--accent)">출발 IP 일치 로그인 <b>${og.kept}</b> / ${og.total}개만 분석</span><br>`;
+    if (R && opos >= 0 && R.localN && R.localN[opos]) h += `<span class="dim" title="tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 세션 — 그 서버 앞(GUI·콘솔)이나 tmux 안에서 생긴 것이라 점프로 보지 않음">로컬 로그인 ${R.localN[opos]}개는 점프로 안 봄</span><br>`;
     el.innerHTML = h;
     const dp = declaredParent(sl);
     document.querySelectorAll(`.pn[data-of="${k}"]`).forEach(x => x.textContent = dp ? dp.name : '');
@@ -924,7 +935,9 @@ function renderChains() {
     const r = ch.root;
     const pat = ch.pattern ? '<span class="bd ok" title="점프 후 역순 회수 패턴과 일치">역순 ✓</span>'
       : ch.found ? `<span class="bd warn" title="회수(재접속)가 확인된 서버 연결 ${ch.found}/${ch.needed}${ch.ordered ? '' : ' · 순서 다름'}">회수 ${ch.found}/${ch.needed}</span>` : '';
-    const ip = (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
+    const lp = ch.longP && ch.longP.length ? ch.longP.reduce((a, b) => (b.e == null ? Infinity : b.e - b.s) > (a.e == null ? Infinity : a.e - a.s) ? b : a) : null;
+    const lpB = lp ? `<span class="bd warn" title="${esc(AS[lp.lv].name)} ${fDT(lp.s)} 세션이 ${lp.e == null ? '로그아웃 기록 없이 열려 있음' : fDur(lp.e - lp.s) + ' 동안 이어짐'} — 자식은 시작 후 ${S.maxPar}시간 안의 로그인만 붙였습니다">${lp.e == null ? '로그아웃 없음' : '장기 ' + longTxt(lp.e - lp.s)}</span>` : '';
+    const ip = lpB + (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
       + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인 마지막 서버 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
     const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
     return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
@@ -937,6 +950,7 @@ function renderChains() {
     select(c.dataset.id);
   });
 }
+const longTxt = ms => { const d = ms / 86400000; return d >= 60 ? Math.round(d / 30) + '개월' : d >= 1 ? Math.round(d) + '일' : Math.round(ms / 3600000) + '시간'; };
 function select(id) {
   S.sel = id;
   document.querySelectorAll('#chains .ci').forEach(c => c.classList.toggle('on', c.dataset.id === id));
@@ -1308,7 +1322,8 @@ function drawGantt(ch, boxId = 'gantt') {
     if (w > 92) g += `<text x="${x1 + 4}" y="${ty}" style="${fs}fill:${inFill};font-weight:600;pointer-events:none">${esc(label)}</text>`;
     else if (w > 40) g += `<text x="${x1 + 4}" y="${ty}" style="${fs}fill:${inFill};font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
     else g += `<text x="${x2 + 3}" y="${ty}" style="${fs}fill:${c};font-weight:600;pointer-events:none">${esc(label)}</text>`;
-    if (w > 150 && x.e != null) g += `<text x="${x2 - 4}" y="${ty}" text-anchor="end" style="${fs}fill:${inFill};pointer-events:none">${fT(x.e)}</text>`;
+    const cut = x.e == null || x.e > b;   // 화면 오른쪽 밖까지 이어짐
+    if (w > 150 && (x.e != null || cut)) g += `<text x="${x2 - 4}" y="${ty}" text-anchor="end" style="${fs}fill:${inFill};pointer-events:none">${cut ? (x.e == null ? (x.endKind === 'gone' ? '로그아웃 기록 없음 →' : '계속 접속 중 →') : '→ ' + fD(x.e).slice(5) + ' ' + fT(x.e)) : fT(x.e)}</text>`;
     g += '</g>';
   }
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
@@ -1319,7 +1334,7 @@ function drawGantt(ch, boxId = 'gantt') {
    그 시간 안에 "완전히 들어간" 세션만 진하게, 나머지는 흐리게 */
 const CAP_DBG = 800;
 function inside(p, c) {              // c(오른쪽 노드)가 p(왼쪽 노드) 세션 시간 안에 완전히 들어가나
-  const tol = S.tol * 1000, pEnd = p.eHi == null ? Infinity : p.eHi;
+  const tol = S.tol * 1000, pEnd = parentEnd(p);
   const cEndLo = c.e == null ? (c.endKind === 'gone' ? c.s : Infinity) : c.e;
   return c.sHi >= p.s - tol && cEndLo <= pEnd + tol;
 }
@@ -1530,6 +1545,7 @@ function sampleData() {
     r.dataset.theme = th; try { localStorage.setItem('hop_theme', th); } catch (e) {}
   };
   $('#tol').oninput = e => { S.tol = Math.max(0, +e.target.value || 0); run(); };
+  $('#maxPar').oninput = e => { S.maxPar = Math.max(0, +e.target.value || 0); S.sel = null; run(); };
   $('#tz').onchange = e => { S.tz = parseTz(e.target.value); S.slots.forEach(rebuildSlot); run(); };
   $('#strict').onchange = e => { S.strict = e.target.checked; run(); };
   $('#sample').onclick = sampleData;
