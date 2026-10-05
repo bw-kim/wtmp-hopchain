@@ -256,7 +256,9 @@ tr.selrow td{background:var(--accent-bg)}
 'use strict';
 /* ───────── 상태 ───────── */
 const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
-const NAMES = 'ABCDEFGH';
+const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
+// 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
+const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
 const MONS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const WD = 'Sun Mon Tue Wed Thu Fri Sat'.split(' ');
 const ROLE = {
@@ -761,9 +763,11 @@ function renderSlots() {
     on('.paste', v => { sl.paste = v; sl.dirty = true; });
   });
   const add = document.createElement('div'); add.className = 'addcol';
-  add.innerHTML = `<button class="btn" id="addSlot">+ 서버 추가</button>`;
+  add.innerHTML = `<button class="btn" id="addSlot" title="체인으로 잇는 서버">+ 서버 추가</button><button class="btn" id="addRef" title="체인과 짝을 맞추지 않고, 고른 체인 시간대의 로그인만 대조 라인으로 띄우는 서버" style="color:var(--r-ref)">+ 비교 서버 추가</button>${S.slots.length >= MAX_SLOTS ? `<span class="hint">최대 ${MAX_SLOTS}개</span>` : ''}`;
   box.appendChild(add);
-  add.querySelector('button').onclick = () => { if (S.slots.length < 8) { S.slots.push(newSlot(NAMES[S.slots.length])); renderSlots(); run(); } };
+  const addOne = ref => { if (S.slots.length >= MAX_SLOTS) return; const sl = newSlot(nextName()); sl.ref = ref; S.slots.push(sl); renderSlots(); run(); };
+  add.querySelector('#addSlot').onclick = () => addOne(false);
+  add.querySelector('#addRef').onclick = () => addOne(true);
   renderInfo();
 }
 function renderFold() {
