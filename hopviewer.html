@@ -124,7 +124,7 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .steps{display:flex;flex-wrap:wrap;gap:4px}
 .stp{font-size:11.5px;padding:0 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;cursor:default}
 .stp.ok{color:var(--ok)} .stp.no{color:var(--bad)} .stp.mid{color:var(--warn)}
-.gwrap{padding:6px 12px 2px;overflow-x:auto;flex:none}
+.gwrap{padding:6px 12px 2px;overflow:auto;flex:none;max-height:42vh}
 .gwrap svg{display:block}
 .gwrap text{font-family:var(--sans);font-size:11px;fill:var(--muted)}
 .gwrap .ln{font-weight:700;fill:var(--text);font-size:12px}
@@ -793,7 +793,7 @@ function renderDetail() {
       <div class="steps">${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
     </div>
     <div class="gwrap" id="gantt"></div>
-    <div class="legend">${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
+    <div class="legend">${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span><i style="background:repeating-linear-gradient(45deg,var(--r-other) 0 2px,transparent 2px 4px)"></i>빗금 = pty 아님 (sftp·scp 등 가능)</span><span>같은 서버에서 겹친 세션은 줄을 나눠 표시 · <b style="color:var(--warn)">동시 N</b> = 창 N개가 열려 있던 때가 있음</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
     <div class="dtable"><table>
       <thead><tr><th></th><th>#</th><th>시각</th><th>출발 후</th><th>간격</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead>
       <tbody>${ev.slice(0, CAP_EVENTS).map((e, i) => {
@@ -845,37 +845,67 @@ function drawGantt(ch) {
   const box = document.getElementById('gantt');
   if (!box) return;
   const lv0 = ch.root.lv, nL = ch.depth + 1;
-  const W = Math.max(520, box.clientWidth - 26), LW = 84, RP = 14, LH = nL > 5 ? 28 : 34, TOP = 20, H = TOP + nL * LH + 4;
+  const W = Math.max(520, box.clientWidth - 26), LW = 96, RP = 14, TOP = 20, RH = 20, BH = 15, LPAD = 6;
   const t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0);
   const pad0 = (t1 - t0) * 0.02, a = t0 - pad0, b = t1 + pad0;
   const X = t => LW + (t - a) / (b - a) * (W - LW - RP);
-  const yL = lv => TOP + (lv - lv0) * LH;
-  let g = '';
+  const isPty = x => /^(pts|tty|vc|console|:)/.test(x.tty);
+  // 서버마다 세션을 칸에 배치: 시작 순으로 놓되, 화면에서 앞 막대(글자 포함)와 겹치면 아래 칸으로
+  const lanes = [];
+  for (let k = 0; k < nL; k++) {
+    const list = ch.list.filter(x => x.lv === lv0 + k).sort((p, q) => p.s - q.s), rowEnd = [];
+    for (const x of list) {
+      const x1 = X(x.s), x2 = Math.max(x1 + 3, X(x.e == null ? t1 : x.e));
+      const need = Math.max(x2, x1 + (x2 - x1 > 70 ? 0 : 74));      // 짧은 막대는 오른쪽 글자 자리까지
+      let r = rowEnd.findIndex(end => end + 4 <= x1);
+      if (r < 0) { r = rowEnd.length; rowEnd.push(0); }
+      rowEnd[r] = need; x._row = r; x._x1 = x1; x._x2 = x2;
+    }
+    // 동시에 열려 있던 최대 세션 수: 시작 +1, 종료 -1 을 시간순으로 훑기 (같은 시각이면 종료 먼저)
+    const evs = [];
+    for (const x of list) { evs.push([x.s, 1]); if (x.e != null) evs.push([x.e, -1]); }
+    evs.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    let conc = 0, cur = 0; for (const [, d] of evs) { cur += d; if (cur > conc) conc = cur; }
+    lanes.push({ list, rows: Math.max(1, rowEnd.length), conc });
+  }
+  const laneTop = [], laneH = lanes.map(l => Math.max(36, l.rows * RH + LPAD * 2));
+  let acc = TOP; for (const h of laneH) { laneTop.push(acc); acc += h; }
+  const H = acc + 4;
+  const barY = x => laneTop[x.lv - lv0] + LPAD + x._row * RH + (RH - BH) / 2;
+  let g = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="2.2" stroke-opacity=".55"/></pattern></defs>`;
   const stepsMs = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440, 2880, 10080].map(m => m * 60000);
   const step = stepsMs.find(s => (b - a) / s <= Math.max(4, W / 110)) || stepsMs[stepsMs.length - 1];
   for (let t = Math.ceil(a / step) * step; t <= b; t += step) {
     const x = X(t);
     g += `<line x1="${x}" x2="${x}" y1="${TOP - 4}" y2="${H - 2}" stroke="var(--line2)"/><text x="${x}" y="${TOP - 7}" text-anchor="middle">${step >= 86400000 ? fD(t).slice(5) : fT(t)}</text>`;
   }
-  for (let k = 0; k < nL; k++) {
-    const y = yL(lv0 + k), ip = AS[lv0 + k].ip.split(/[\s,]+/)[0];
-    g += `<line x1="0" x2="${W}" y1="${y + LH - 1}" y2="${y + LH - 1}" stroke="var(--line2)"/>`;
-    const sl = AS[lv0 + k], addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
-    g += `<text x="6" y="${y + LH / 2 + (ip ? -1 : 4)}" class="ln">${addr ? `<title>${esc(addr)}</title>` : ''}${nm(lv0 + k)}</text>`;
-    if (ip) g += `<text x="6" y="${y + LH / 2 + 11}" style="font-size:9.5px">${esc(ip)}</text>`;
-  }
-  const BH = LH - 14, BY = lv => yL(lv) + 7;
+  lanes.forEach((ln, k) => {
+    const y = laneTop[k], h = laneH[k], sl = AS[lv0 + k], ip = sl.ip.split(/[\s,]+/)[0];
+    if (k % 2) g += `<rect x="0" y="${y}" width="${W}" height="${h}" fill="var(--panel2)" opacity=".5"/>`;
+    g += `<line x1="0" x2="${W}" y1="${y + h - 0.5}" y2="${y + h - 0.5}" stroke="var(--line2)"/>`;
+    const addr = [sl.ip && '실제 ' + sl.ip, sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '이 서버 last 의 앞 서버 IP ' + sl.inSrc].filter(Boolean).join('\n');
+    const lines = [`<tspan class="ln">${nm(lv0 + k)}</tspan>`];
+    if (ip) lines.push(`<tspan x="6" dy="12" style="font-size:9.5px">${esc(ip)}</tspan>`);
+    if (ln.list.length > 1) lines.push(`<tspan x="6" dy="12" style="font-size:9.5px;fill:${ln.conc > 1 ? 'var(--warn)' : 'var(--muted)'}">세션 ${ln.list.length}${ln.conc > 1 ? ` · 동시 ${ln.conc}` : ''}</tspan>`);
+    g += `<text x="6" y="${y + h / 2 - (lines.length - 1) * 6 + 4}">${addr ? `<title>${esc(addr)}</title>` : ''}${lines.join('')}</text>`;
+  });
+  // 연결선 먼저, 막대는 위에
   for (const x of ch.list) {
-    const x1 = X(x.s), x2 = Math.max(x1 + 3, X(x.e == null ? t1 : x.e)), y = BY(x.lv), c = ROLE[x.role].c;
-    const tip = `${AS[x.lv].name} ${ROLE[x.role].t}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}\n${x.user} ${x.tty} ${x.host}`;
-    if (x.parent) {
-      const py = BY(x.parent.lv) + BH;
-      g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
-      if (x.e != null && x.role !== 'fetch') g += `<line x1="${x2}" x2="${x2}" y1="${y}" y2="${py}" stroke="var(--faint)" stroke-dasharray="3 3"/>`;
-    }
-    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${x2 - x1}" height="${BH}" rx="4" fill="${c}" fill-opacity="${x.role === 'other' ? .45 : .9}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
-    if (x2 - x1 > 42) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
-    if (x2 - x1 > 96 && x.e != null) g += `<text x="${x2 - 4}" y="${y + BH / 2 + 4}" text-anchor="end" style="fill:#fff;pointer-events:none">${fT(x.e)}</text>`;
+    if (!x.parent) continue;
+    const c = ROLE[x.role].c, y = barY(x), py = barY(x.parent) + BH, x1 = x._x1, x2 = x._x2;
+    g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
+    if (x.e != null && x.role !== 'fetch') g += `<line x1="${x2}" x2="${x2}" y1="${y}" y2="${py}" stroke="var(--faint)" stroke-dasharray="3 3"/>`;
+  }
+  for (const x of ch.list) {
+    const x1 = x._x1, x2 = x._x2, w = x2 - x1, y = barY(x), c = ROLE[x.role].c;
+    const tip = `${AS[x.lv].name} ${ROLE[x.role].t}${isPty(x) ? '' : ' · pty 아님(sftp/scp 등 가능)'}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}${x.e == null ? '' : ' (' + fDur(x.e - x.s, x.sec) + ')'}\n${x.user} ${x.tty} ${x.host}`;
+    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${x.role === 'other' ? .55 : .9}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
+    if (!isPty(x)) g += `<rect x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="url(#hatch)" pointer-events="none"/>`;
+    const label = `${fT(x.s)} ${x.tty || ''}`.trim();
+    if (w > 92) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${esc(label)}</text>`;
+    else if (w > 40) g += `<text x="${x1 + 4}" y="${y + BH / 2 + 4}" style="fill:#fff;font-weight:600;pointer-events:none">${fT(x.s)}</text>`;
+    else g += `<text x="${x2 + 3}" y="${y + BH / 2 + 4}" style="fill:${c};font-weight:600;pointer-events:none">${esc(label)}</text>`;
+    if (w > 150 && x.e != null) g += `<text x="${x2 - 4}" y="${y + BH / 2 + 4}" text-anchor="end" style="fill:#fff;pointer-events:none">${fT(x.e)}</text>`;
     g += '</g>';
   }
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
