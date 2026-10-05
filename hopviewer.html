@@ -60,6 +60,9 @@ h2.sect small{color:var(--muted);font-weight:500;font-size:12.5px}
 .sh input.nm{flex:1;font-weight:700;min-width:0}
 .xbtn{background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
 .xbtn:hover{color:var(--bad)}
+.mv{background:none;border:1px solid var(--line);border-radius:5px;color:var(--muted);cursor:pointer;font-size:10px;line-height:1;padding:3px 5px}
+.mv:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.mv:disabled{opacity:.3;cursor:default}
 .slot label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted)}
 .slot label input{width:100%}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -600,6 +603,7 @@ function renderSlots() {
     const d = document.createElement('div'); d.className = 'slot' + (sl.off ? ' off' : ''); d.dataset.k = k;
     d.innerHTML = `
       <div class="sh"><span class="lvn">${k + 1}</span><input type="text" class="nm" value="${esc(sl.name)}" title="서버 이름">
+        <button class="mv" data-act="left" title="앞으로 이동"${k ? '' : ' disabled'}>◀</button><button class="mv" data-act="right" title="뒤로 이동"${k < S.slots.length - 1 ? '' : ' disabled'}>▶</button>
         <button class="tg${sl.off ? ' no' : ''}" data-act="tog" title="분석에 넣기/빼기">${sl.off ? 'OFF' : 'ON'}</button>
         ${S.slots.length > 2 ? '<button class="xbtn" data-act="del" title="이 서버 칸 삭제">×</button>' : ''}</div>
       <label>이 서버 실제 IP <span class="hint">(서버 안에서 ip addr 로 보이는 주소, 선택)</span><input type="text" class="ip" value="${esc(sl.ip)}" placeholder="예: 10.10.2.20"></label>
@@ -621,6 +625,7 @@ function renderSlots() {
       const a = e.target.closest('[data-act]'); if (!a) return;
       if (a.dataset.act === 'pick') fin.click();
       if (a.dataset.act === 'tog') { toggleSlot(sl); return; }
+      if (a.dataset.act === 'left' || a.dataset.act === 'right') { moveSlot(k, a.dataset.act === 'left' ? -1 : 1); return; }
       if (a.dataset.act === 'del') { S.slots.splice(k, 1); renderSlots(); run(); }
       if (a.dataset.act === 'rmf') { sl.files.splice(+a.dataset.i, 1); rebuildSlot(sl); renderSlots(); run(); }
     });
@@ -709,6 +714,13 @@ function renderNodes() {
   el.innerHTML = '서버 ' + S.slots.map((sl, k) => `<button class="nd${sl.off ? ' no' : ''}" data-k="${k}" title="눌러서 ${sl.off ? '켜기' : '끄기'}">${esc(sl.name)}</button>`).join('')
     + `<span style="margin-left:4px">${AS.length >= 2 ? AS.map(x => esc(x.name)).join('→') : ''}</span>`;
   el.querySelectorAll('.nd').forEach(b => b.onclick = () => toggleSlot(S.slots[+b.dataset.k]));
+}
+// 서버 순서 바꾸기. "← 앞 서버에서 들어올 때" 칸 값은 그 칸에 그대로 남고, 제목의 앞 서버 이름만 새 순서로 바뀜
+function moveSlot(k, d) {
+  const j = k + d;
+  if (j < 0 || j >= S.slots.length) return;
+  [S.slots[k], S.slots[j]] = [S.slots[j], S.slots[k]];
+  S.sel = null; S.tab = 0; renderSlots(); run();
 }
 function toggleSlot(sl) { sl.off = !sl.off; S.sel = null; S.tab = 0; renderSlots(); run(); }
 function renderChains() {
