@@ -152,7 +152,6 @@ tr.hl td{background:var(--accent-bg)}
 .dps tr.rw:hover td{background:var(--panel2)}
 .dps tr.rw.dim td{opacity:.32}
 .dps tr.rw.hit td{font-weight:700;background:var(--accent-bg);color:var(--text)}
-.dps tr.rw.part td{background:rgba(233,192,74,.10)}
 .dps tr.rw.sel td{background:var(--accent-bg);font-weight:700}
 .dps tr.rw.sel td:first-child{box-shadow:inset 3px 0 var(--accent)}
 .dbar{position:relative;width:120px;height:8px;background:var(--line2);border-radius:2px}
@@ -229,7 +228,7 @@ tr.selrow td{background:var(--accent-bg)}
     <section class="panel" id="detail"></section>
   </div>
 
-  <h2 class="sect">4. 노드 로그 보기 · 비교 <small>한 노드의 last 로그를 날짜별로 보기 + 왼쪽 세션을 누르면 오른쪽 노드에서 그 시간 안에 들어온 로그인을 진하게 표시 (반대 방향도 가능) — 체인 판정과 별개로 원본 세션 그대로</small></h2>
+  <h2 class="sect">4. 노드 로그 보기 · 비교 <small>한 노드의 last 로그를 날짜별로 보기 + 왼쪽(앞 노드) 세션을 누르면 오른쪽(다음 노드)에서 그 세션 시간 안에 완전히 들어간 로그인만 진하게 — A 로 들어와 B 로 점프한 세션 찾기용, 체인 판정과 별개로 원본 세션 그대로</small></h2>
   <div class="panel" id="all"></div>
 
   <div class="panel help" style="margin-top:26px">
@@ -247,7 +246,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '' }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGH';
 const MONS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const WD = 'Sun Mon Tue Wed Thu Fri Sat'.split(' ');
@@ -883,83 +882,127 @@ function drawGantt(ch) {
 }
 
 /* ───────── 렌더: 노드 로그 보기 · 비교 (디버그) ─────────
-   체인 알고리즘과 상관없이 원본 세션을 그대로 보여준다. 한쪽 세션을 누르면 다른 쪽에서
-   그 시간 안에 들어간 세션(포함)을 진하게, 경계에 걸친 세션(걸침)은 따로, 나머지는 흐리게 */
+   체인 판정과 별개로 원본 세션을 그대로 보여준다. 한쪽 세션을 누르면 다른 쪽에서
+   그 시간 안에 "완전히 들어간" 세션만 진하게, 나머지는 흐리게 */
 const CAP_DBG = 800;
-function rel(p, c) {                 // p(앞 노드) 시간 안에 c(다음 노드)가 들어가나
+function inside(p, c) {              // c(오른쪽 노드)가 p(왼쪽 노드) 세션 시간 안에 완전히 들어가나
   const tol = S.tol * 1000, pEnd = p.eHi == null ? Infinity : p.eHi;
   const cEndLo = c.e == null ? (c.endKind === 'gone' ? c.s : Infinity) : c.e;
-  if (c.sHi >= p.s - tol && cEndLo <= pEnd + tol) return 'hit';
-  if (c.s <= pEnd && (c.e == null ? Infinity : c.e) >= p.s) return 'part';
-  return '';
+  return c.sHi >= p.s - tol && cEndLo <= pEnd + tol;
 }
-function dbgSel() {
-  const D = S.dbg, k = D.side === 'l' ? D.l : D.side === 'r' ? D.r : -1;
-  return k >= 0 && S.slots[k] ? S.slots[k].sessions[D.idx] || null : null;
+// 왼쪽 노드에서 오른쪽 노드로 접속했다면 오른쪽 last 에 찍힐 출발지 후보
+function dbgAddrs(lk, rk) {
+  const a = [], add = (v, kind) => splitIps(v).forEach(ip => { if (!a.some(x => x.ip === ip)) a.push({ ip, kind }); });
+  if (rk === lk + 1) add(S.slots[rk].inSrc, '지정');
+  add(S.slots[lk].ip, '실IP'); add(S.slots[lk].inDst, 'NAT');
+  return a;
+}
+// 왼쪽 세션마다 그 안에 들어간 오른쪽 세션 목록 + 오른쪽 세션의 출발지 IP 판정 (같은 분석 결과 안에서는 캐시)
+let dbgCache = null;
+function dbgLinks(lk, rk) {
+  const key = [lk, rk, S.tol, S.strict].join();
+  if (dbgCache && dbgCache.key === key && dbgCache.R === R) return dbgCache.v;
+  const P = S.slots[lk].sessions, C = S.slots[rk].sessions, tol = S.tol * 1000;
+  const addrs = dbgAddrs(lk, rk), ip = C.map(c => hostMatch(c.host, addrs));
+  const ok = j => !(S.strict && addrs.length && !ip[j]);          // "출발지 IP 일치만" 이면 IP 다른 건 제외
+  const starts = C.map(c => c.s);                                 // 세션은 시작시각 순으로 정렬돼 있음
+  const kids = P.map(p => {
+    const out = [], pEnd = p.eHi == null ? Infinity : p.eHi;
+    for (let j = upperBound(starts, p.s - tol - 60000 - 1); j < C.length && C[j].s <= pEnd + tol; j++)
+      if (ok(j) && inside(p, C[j])) out.push(j);
+    return out;
+  });
+  const inAny = new Uint8Array(C.length);
+  kids.forEach(ks => ks.forEach(j => inAny[j] = 1));
+  const v = { kids, inAny, ip, addrs, ok };
+  dbgCache = { key, R, v };
+  return v;
 }
 function dayBar(x) {
   const day = 86400000, d0 = Math.floor(x.s / day) * day, end = x.e == null ? d0 + day : Math.min(x.e, d0 + day);
   const l = (x.s - d0) / day * 100, w = Math.max(0.4, (end - x.s) / day * 100);
   const more = x.e == null || x.e > d0 + day;
-  return `<div class="dbar" title="${fT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}"><i style="left:${l}%;width:${w}%${more ? ';border-radius:2px 0 0 2px;opacity:.7' : ''}"></i></div>`;
+  return `<div class="dbar" title="${fT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}"><i style="left:${l}%;width:${w}%${more ? ';opacity:.7' : ''}"></i></div>`;
 }
-function dbgPanel(side) {
-  const D = S.dbg, k = side === 'l' ? D.l : D.r, sl = S.slots[k];
-  const ss = sl.sessions, q = (side === 'l' ? D.ql : D.qr).trim().toLowerCase();
-  const selX = dbgSel(), other = D.side && D.side !== side && D.r >= 0 && selX;
-  const mark = other ? ss.map(x => side === 'r' ? rel(selX, x) : rel(x, selX)) : null;
+function dbgPanel(side, lk) {
+  const D = S.dbg, k = side === 'l' ? D.l : D.r, sl = S.slots[k], ss = sl.sessions;
+  const q = (side === 'l' ? D.ql : D.qr).trim().toLowerCase();
+  const two = D.r >= 0, L = two ? dbgLinks(D.l, D.r) : null;
+  // 진하게 표시할 행: 반대쪽에서 고른 세션과 "포함" 관계인 행
+  let mark = null;
+  if (two && D.side && D.side !== side && D.idx >= 0) {
+    if (side === 'r') { mark = new Uint8Array(ss.length); (L.kids[D.idx] || []).forEach(j => mark[j] = 1); }
+    else { mark = new Uint8Array(ss.length); L.kids.forEach((ks, i) => { if (ks.includes(D.idx)) mark[i] = 1; }); }
+  }
   const idx = [];
   for (let i = 0; i < ss.length; i++) {
+    if (D.only && two) {
+      if (mark && !mark[i]) continue;
+      if (!mark && side === 'l' && !L.kids[i].length) continue;
+      if (!mark && side === 'r' && !L.inAny[i]) continue;
+    }
     const x = ss[i];
     if (!q || (fDT(x.s) + ' ' + x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q)) idx.push(i);
   }
   let focus = -1;
   if (D.side === side) focus = idx.indexOf(D.idx);
-  else if (mark) { focus = idx.findIndex(i => mark[i] === 'hit'); if (focus < 0) focus = idx.findIndex(i => mark[i] === 'part'); }
+  else if (mark) focus = idx.findIndex(i => mark[i]);
   const start = focus < 0 ? 0 : Math.max(0, Math.min(focus - 150, idx.length - CAP_DBG)), view = idx.slice(start, start + CAP_DBG);
-  const pos = AS.indexOf(sl);
+  const pos = AS.indexOf(sl), rName = two ? esc(S.slots[D.r].name) : '';
+  const cols = side === 'l' && two ? 9 : 8;
   let rows = '', prevDay = '';
   for (const i of view) {
     const x = ss[i], day = fD(x.s);
-    if (day !== prevDay) { rows += `<tr class="dh"><td colspan="8">${day} (${'일월화수목금토'[new Date(x.s).getUTCDay()]})</td></tr>`; prevDay = day; }
-    const m = mark ? mark[i] : null, ch = pos >= 0 && R ? R.byId.get(pos + ':' + i) : null;
-    const cls = (D.side === side && D.idx === i ? ' sel' : '') + (m === 'hit' ? ' hit' : m === 'part' ? ' part' : m === '' ? ' dim' : '');
+    if (day !== prevDay) { rows += `<tr class="dh"><td colspan="${cols}">${day} (${'일월화수목금토'[new Date(x.s).getUTCDay()]})</td></tr>`; prevDay = day; }
+    const ch = pos >= 0 && R ? R.byId.get(pos + ':' + i) : null;
+    const cls = (D.side === side && D.idx === i ? ' sel' : '') + (mark ? (mark[i] ? ' hit' : ' dim') : '');
+    let extra = '', ipb = '';
+    if (two && side === 'l') {
+      const ks = L.kids[i], nIp = L.addrs.length ? ks.filter(j => L.ip[j]).length : null;
+      extra = `<td>${ks.length ? `<span class="bd acc" title="이 세션 안에 완전히 들어간 ${rName} 로그인">${ks.length}건</span>${nIp != null ? ` <span class="bd ${nIp ? 'ok' : 'bad'}" title="그중 출발지가 ${esc(S.slots[D.l].name)} 주소와 같은 것">IP✓${nIp}</span>` : ''}` : ''}</td>`;
+    }
+    if (two && side === 'r' && L.addrs.length) {
+      const v = L.ip[i];
+      ipb = typeof v === 'string' ? ` <span class="bd ok" title="출발지가 ${esc(S.slots[D.l].name)} 의 ${esc(v)} 주소와 같음">IP✓</span>`
+        : v === false ? ` <span class="bd bad" title="출발지가 ${esc(S.slots[D.l].name)} 주소(${esc(L.addrs.map(a => a.ip).join(', '))})와 다름 — 직접 로그인 등">IP✕</span>` : '';
+    }
     rows += `<tr class="rw${cls}" data-i="${i}" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">
       <td class="tm">${fT(x.s, x.sec)}</td>
       <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : (fD(x.e) === day ? '' : fD(x.e).slice(5) + ' ') + fT(x.e, x.sec)}</td>
       <td class="tm dim">${x.e == null ? '' : fDur(x.e - x.s, x.sec)}</td>
-      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td><td class="mono">${esc(x.host)}${m === 'part' ? ' <span class="bd warn">걸침</span>' : ''}</td>
-      <td>${dayBar(x)}</td>
+      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td><td class="mono">${esc(x.host)}${ipb}</td>
+      <td>${dayBar(x)}</td>${extra}
       <td>${ch ? `<a data-ch="${ch.root.id}" title="이 세션이 들어간 체인 #${ch.no} 보기">#${ch.no}</a>` : ''}</td></tr>`;
   }
   const opts = S.slots.map((s2, j) => `<option value="${j}"${j === k ? ' selected' : ''}>${esc(s2.name)}${s2.off ? ' (꺼짐)' : ''}</option>`).join('')
-    + (side === 'r' ? `<option value="-1">없음 (한 노드만)</option>` : '');
-  const nHit = mark ? mark.filter(v => v === 'hit').length : 0, nPart = mark ? mark.filter(v => v === 'part').length : 0;
+    + (side === 'r' ? `<option value="-1"${D.r < 0 ? ' selected' : ''}>없음 (한 노드만)</option>` : '');
+  const nHit = mark ? mark.reduce((a, b) => a + b, 0) : 0;
   return `<div class="dp">
     <div class="dph"><select data-side="${side}">${opts}</select>
-      <span class="hint">${ss.length}개${q ? ` · 검색 ${idx.length}개` : ''}${mark ? ` · <b style="color:var(--accent)">포함 ${nHit}</b> · 걸침 ${nPart}` : ''}</span>
+      <span class="hint">${ss.length}개${idx.length !== ss.length ? ` · 표시 ${idx.length}개` : ''}${mark ? ` · <b style="color:var(--accent)">포함 ${nHit}</b>` : ''}</span>
       <span style="flex:1"></span><input type="text" id="dq-${side}" placeholder="검색 (날짜·계정·IP·tty)" value="${esc(side === 'l' ? D.ql : D.qr)}" style="width:170px"></div>
     <div class="dps" data-side="${side}"><table>
-      <thead><tr><th>로그인</th><th>로그아웃</th><th>지속</th><th>계정</th><th>tty</th><th>출발지</th><th>하루 중 위치 (0~24시)</th><th>체인</th></tr></thead>
-      <tbody>${start ? `<tr><td colspan="8" class="empty">위로 ${start}개 생략 — 검색으로 좁히세요</td></tr>` : ''}${rows || '<tr><td colspan="8" class="empty">세션 없음</td></tr>'}${idx.length > start + view.length ? `<tr><td colspan="8" class="empty">아래로 ${idx.length - start - view.length}개 생략 — 검색으로 좁히세요</td></tr>` : ''}</tbody></table></div></div>`;
+      <thead><tr><th>로그인</th><th>로그아웃</th><th>지속</th><th>계정</th><th>tty</th><th>출발지</th><th>하루 중 위치 (0~24시)</th>${cols === 9 ? `<th title="이 세션 안에 완전히 들어간 ${rName} 로그인 수">→ ${rName}</th>` : ''}<th>체인</th></tr></thead>
+      <tbody>${start ? `<tr><td colspan="${cols}" class="empty">위로 ${start}개 생략 — 검색으로 좁히세요</td></tr>` : ''}${rows || `<tr><td colspan="${cols}" class="empty">${D.only ? '조건에 맞는 세션 없음' : '세션 없음'}</td></tr>`}${idx.length > start + view.length ? `<tr><td colspan="${cols}" class="empty">아래로 ${idx.length - start - view.length}개 생략 — 검색으로 좁히세요</td></tr>` : ''}</tbody></table></div></div>`;
 }
 function renderAll() {
   const box = $('#all'), D = S.dbg, N = S.slots.length;
   if (D.l >= N) D.l = 0;
   if (D.r >= N) D.r = Math.min(D.l + 1, N - 1);
-  const selX = dbgSel();
-  if (D.side && !selX) { D.side = null; D.idx = -1; }
+  if (D.side && !(S.slots[D.side === 'l' ? D.l : D.r] || { sessions: [] }).sessions[D.idx]) { D.side = null; D.idx = -1; }
   const keep = {};                  // 누른 쪽 스크롤 위치 유지
   box.querySelectorAll('.dps').forEach(el => keep[el.dataset.side] = el.scrollTop);
-  const nmS = k => esc(S.slots[k].name);
-  let sum = '세션 행을 누르면 반대쪽에서 그 시간 안에 들어간 세션이 진하게 표시됩니다.';
-  if (selX && D.r >= 0) sum = D.side === 'l'
+  const nmS = k => esc(S.slots[k].name), selX = D.side ? S.slots[D.side === 'l' ? D.l : D.r].sessions[D.idx] : null;
+  let sum = `왼쪽 세션을 누르면 오른쪽에서 그 시간 안에 <b>완전히 들어간</b> 로그인만 진하게 표시됩니다. 오른쪽을 누르면 반대로 그 로그인을 품은 왼쪽 세션.`;
+  if (D.r < 0) sum = '한 노드만 보기';
+  else if (selX) sum = D.side === 'l'
     ? `<b>${nmS(D.l)}</b> ${fDT(selX.s, selX.sec)} ~ ${selX.e == null ? selX.endKind : fT(selX.e, selX.sec)} 세션 안에 들어간 <b>${nmS(D.r)}</b> 로그인`
     : `<b>${nmS(D.r)}</b> ${fDT(selX.s, selX.sec)} 로그인을 품고 있는 <b>${nmS(D.l)}</b> 세션`;
-  else if (D.r < 0) sum = '한 노드만 보기';
+  const L = D.r >= 0 ? dbgLinks(D.l, D.r) : null;
   box.innerHTML = `
     <div class="dbgbar"><span class="hint">${sum}</span><span style="flex:1"></span>
-      <span class="hint">허용 오차 ${S.tol}초 적용 · 진하게 = 포함, <span class="bd warn">걸침</span> = 경계에 걸침</span>
+      ${D.r >= 0 ? `<label class="ctl" title="왼쪽은 ${nmS(D.r)} 로그인이 들어 있는 세션만, 오른쪽은 ${nmS(D.l)} 세션 안에 들어가는 로그인만"><input type="checkbox" id="donly"${D.only ? ' checked' : ''}> 관련 있는 것만</label>` : ''}
+      ${L ? `<span class="hint" title="${L.addrs.length ? '비교 주소: ' + esc(L.addrs.map(a => a.ip + '(' + a.kind + ')').join(', ')) : ''}">허용 오차 ${S.tol}초${L.addrs.length ? ` · ${nmS(D.l)} IP ${L.addrs.length}개로 출발지 확인${S.strict ? ' (일치만)' : ''}` : ` · ${nmS(D.l)} IP 미입력`}</span>` : ''}
       ${D.r >= 0 ? '<button class="btn" id="dswap" title="왼쪽·오른쪽 노드 바꾸기">⇄</button>' : ''}
       ${D.side ? '<button class="btn" id="dclr">선택 해제</button>' : ''}</div>
     <div class="dbg${D.r < 0 ? ' one' : ''}">${dbgPanel('l')}${D.r >= 0 ? dbgPanel('r') : ''}</div>`;
@@ -967,7 +1010,7 @@ function renderAll() {
     const side = el.dataset.side;
     if (side === D.side && keep[side] != null) el.scrollTop = keep[side];
     else {
-      const row = el.querySelector('tr.hit, tr.part, tr.sel');
+      const row = el.querySelector('tr.hit, tr.sel');
       if (row) el.scrollTop = Math.max(0, row.offsetTop - 70);
     }
   });
@@ -978,6 +1021,7 @@ function renderAll() {
     const qi = document.getElementById('dq-' + side); if (!qi) continue;
     qi.oninput = () => { D['q' + side] = qi.value; renderAll(); const n = document.getElementById('dq-' + side); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   }
+  const on = $('#donly'); if (on) on.onchange = () => { D.only = on.checked; renderAll(); };
   box.querySelectorAll('.dps').forEach(el => el.onclick = e => {
     const a = e.target.closest('[data-ch]');
     if (a) {
