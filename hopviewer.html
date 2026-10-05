@@ -170,6 +170,13 @@ tr.hl td{background:var(--accent-bg)}
 .gfull{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
 .gfh{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .gfb{flex:1;overflow:auto;padding:8px 16px}
+.pnav{display:flex;align-items:center;gap:4px}
+.pnav select,.pbar select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
+.pnav .plab{flex:1;text-align:center;font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pnav .btn,.pbar .btn{padding:2px 8px}
+.pbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px}
+.pbar input{font-size:12px;padding:2px 4px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color-scheme:inherit}
+.zsel{fill:var(--accent);fill-opacity:.15;stroke:var(--accent)}
 .gtools{display:inline-flex;align-items:center;gap:8px;margin-right:6px}
 .kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
 @media (max-width:900px){
@@ -237,6 +244,7 @@ tr.selrow td{background:var(--accent-bg)}
           <div class="nodes" id="nodes"></div>
           <input type="text" id="org" placeholder="출발 IP 필터 (A 에 접속한 공격자 IP)" title="출발 서버에 접속한 IP. 여러 개, 45.133.1.0/24, 91.240.* 가능">
           <div class="hint" id="orgInfo"></div>
+          <div class="pnav" id="pnav"></div>
           <div class="seg" id="cf"></div>
           <div class="hint">첫 서버 로그인 시각 순 (오래된 것부터) · ☆ 를 누르면 킵</div>
         </div>
@@ -263,6 +271,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
     · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 세로줄이 빽빽한 빗 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
     · <b>킵</b>: 체인 목록의 ☆ 나 상세 화면의 <b>☆ 킵</b> 을 누르면 그 순간의 체인·비교 라인·순서표와 설정을 그대로 보관합니다. 왼쪽 위 <b>★ 킵</b> 탭에서 나중에 설정을 바꾼 뒤에도 그때 모습 그대로 다시 볼 수 있고, 메모를 달거나 JSON 으로 내보내기·가져오기 할 수 있습니다.<br>
     · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 체인 마지막 서버 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
@@ -284,7 +293,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, maxPar: 24, gdense: false, gfull: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, gfull: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -612,7 +621,8 @@ function analyze() {
   chains.forEach((c, i) => c.no = i + 1);
   const byId = new Map(); for (const c of chains) for (const x of c.list) byId.set(x.id, c);
   const RF = S.slots.filter(sl => !sl.off && sl.ref).map(sl => ({ sl, ss: sl.sessions, starts: sl.sessions.map(x => x.s) }));
-  R = { L, chains, sugg, byId, addrs, PL, origin, RF, localN };
+  let lastT = 0; for (const sl of AS) for (const x of sl.sessions) lastT = Math.max(lastT, x.e == null ? x.s : x.e);
+  R = { L, chains, sugg, byId, addrs, PL, origin, RF, localN, lastT };
 }
 const MAX_CANDS = 20;
 function upperBound(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
@@ -867,9 +877,50 @@ function chainPath(ch) { return topoText([...ch.lvs]); }
 const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치'], ['ref', '비교 겹침']];
 const refHit = ch => R.RF.length && refStrong(ch).some(n => n);
 function isFull(ch) { return ch.lvs.size === AS.length; }
+// 체인 목록 기간: 전체 / 월 / 주 / 일 — 출발 세션 로그인 시각 기준, ◀ ▶ 는 체인이 있는 기간으로 건너뜀
+const PU = [['all', '전체 기간'], ['month', '월'], ['week', '주'], ['day', '일']];
+function periodStart(t, u) {
+  const d = new Date(t);
+  if (u === 'month') return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  const day = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return u === 'week' ? day - ((d.getUTCDay() + 6) % 7) * 86400000 : day;    // 주는 월요일부터
+}
+function periodNext(t, u) {
+  if (u === 'month') { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); }
+  return t + (u === 'week' ? 7 : 1) * 86400000;
+}
+function periodLabel(t, u) {
+  if (u === 'month') return `${new Date(t).getUTCFullYear()}년 ${new Date(t).getUTCMonth() + 1}월`;
+  if (u === 'week') return `${fD(t)} ~ ${fD(periodNext(t, u) - 1).slice(5)}`;
+  return `${fD(t)} (${'일월화수목금토'[new Date(t).getUTCDay()]})`;
+}
+const inPeriod = ch => S.pu === 'all' || (ch.t0 >= S.ps && ch.t0 < periodNext(S.ps, S.pu));
+function renderPeriodNav() {
+  const el = $('#pnav'), all = R.chains;
+  if (S.pu !== 'all' && all.length && !S.ps) S.ps = periodStart(all[0].t0, S.pu);
+  const starts = S.pu === 'all' ? [] : [...new Set(all.map(c => periodStart(c.t0, S.pu)))].sort((a, b) => a - b);
+  const prev = starts.filter(t => t < S.ps).pop(), next = starts.find(t => t > S.ps);
+  const n = all.filter(inPeriod).length;
+  const lab = S.pu === 'all' ? (all.length ? `${fD(all[0].t0)} ~ ${fD(all[all.length - 1].t0)}` : '') : `${periodLabel(S.ps, S.pu)} · ${n}개`;
+  el.innerHTML = `<button class="btn" data-d="-1"${prev == null ? ' disabled' : ''} title="체인이 있는 이전 기간">◀</button>`
+    + `<select id="pu" title="체인 목록을 기간 단위로 끊어 보기">${PU.map(([k, t]) => `<option value="${k}"${S.pu === k ? ' selected' : ''}>${t}</option>`).join('')}</select>`
+    + `<span class="plab" title="${S.pu === 'all' ? '전체 체인의 첫·마지막 날짜' : '이 기간에 출발한 체인 수'}">${lab}</span>`
+    + `<button class="btn" data-d="1"${next == null ? ' disabled' : ''} title="체인이 있는 다음 기간">▶</button>`;
+  el.querySelector('#pu').onchange = e => {
+    S.pu = e.target.value;
+    const cur = R.chains.find(c => c.root.id === S.sel) || R.chains[0];
+    S.ps = cur ? periodStart(cur.t0, S.pu) : 0;
+    renderChains(); renderDetail();
+  };
+  el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => {
+    const t = +b.dataset.d < 0 ? prev : next; if (t == null) return;
+    S.ps = t; renderChains(); renderDetail();
+  });
+}
 function filteredChains() {
   const q = S.cq.trim().toLowerCase();
   return R.chains.filter(ch => {
+    if (!inPeriod(ch)) return false;
     if (S.cf === 'full' && !isFull(ch)) return false;
     if (S.cf === 'pattern' && !ch.pattern) return false;
     if (S.cf === 'ref' && !refHit(ch)) return false;
@@ -919,7 +970,9 @@ function renderChains() {
   renderNodes();
   const box = $('#chains'), seg = $('#cf');
   if (S.cf === 'ref' && !R.RF.length) S.cf = 'all';
-  const cnt = { all: R.chains.length, full: R.chains.filter(isFull).length, pattern: R.chains.filter(c => c.pattern).length, ref: R.RF.length ? R.chains.filter(refHit).length : 0 };
+  renderPeriodNav();
+  const base = R.chains.filter(inPeriod);   // 필터 숫자는 지금 기간 기준
+  const cnt = { all: base.length, full: base.filter(isFull).length, pattern: base.filter(c => c.pattern).length, ref: R.RF.length ? base.filter(refHit).length : 0 };
   seg.innerHTML = CF.filter(([k]) => k !== 'ref' || R.RF.length).map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
   seg.querySelectorAll('button').forEach(b => b.onclick = () => { S.cf = b.dataset.k; renderChains(); });
   const list = filteredChains();
@@ -930,7 +983,7 @@ function renderChains() {
     box.innerHTML = `<div class="empty">${og && !og.kept ? `출발 IP(${esc(og.pats.join(', '))})로 들어온 로그인이 출발 서버에 없습니다.` : AS.length < 2 ? '켜진 서버가 2개 이상이어야 합니다. 위의 서버 버튼으로 켜세요.' : have < 2 ? '서버 두 개 이상에 last 로그를 넣으면 여기에 접속 체인이 나옵니다.<br>처음이면 위의 <b>예시 데이터</b>를 눌러 보세요.' : '앞 서버 세션 시간 안에 들어가는 다음 서버 세션이 없습니다. 허용 오차·시간 보정·연도를 확인하세요.'}</div>`;
     $('#clfoot').textContent = ''; S.sel = null; return;
   }
-  if (!R.chains.some(c => c.root.id === S.sel)) S.sel = (S.shown[0] || R.chains[0]).root.id;
+  if (!list.some(c => c.root.id === S.sel)) S.sel = (S.shown[0] || R.chains[0]).root.id;
   box.innerHTML = S.shown.length ? S.shown.map(ch => {
     const r = ch.root;
     const pat = ch.pattern ? '<span class="bd ok" title="점프 후 역순 회수 패턴과 일치">역순 ✓</span>'
@@ -1101,7 +1154,17 @@ function renderDetail() {
 // k 가 있으면 킵 보기 (AS·R 은 withKeep 이 그때 값으로 바꿔 둔 상태)
 function detailInto(ch, k) {
   const box = $('#detail');
-  const ev = events(ch);
+  // 보기 기간: 이 체인(출발 세션)의 생명주기 안에서 그래프·순서표를 잘라 봄
+  const wkey = k ? 'k:' + k.key : 'c:' + ch.root.id;
+  const lastT = R.lastT || Math.max(...ch.list.map(x => x.e == null ? x.s : x.e));
+  const lo = ch.t0, hi = Math.max(ch.t1, ...ch.list.map(x => x.e == null ? Math.max(x.s, lastT) : x.e));
+  const win = S.win && S.win.key === wkey ? S.win : null;
+  ch._win = win ? [win.a, win.b] : null;
+  const evAll = events(ch);
+  const ev = win ? evAll.filter(e => e.t == null || (e.t >= win.a && e.t <= win.b)) : evAll;
+  const va = win ? win.a : lo, vb = win ? win.b : Math.max(ch.t1, lo + 60000);
+  const spanD = (hi - lo) / 86400000;
+  const toIn = t => fD(t) + 'T' + fT(t);
   const kept = !k && keepOf(ch);
   const verdict = ch.pattern ? '<span class="bd ok">점프 후 역순 회수 패턴 일치</span>' : ch.found ? '<span class="bd warn">부분 일치</span>' : '<span class="bd">점프만 확인</span>';
   box.innerHTML = `
@@ -1113,6 +1176,11 @@ function detailInto(ch, k) {
         <span style="flex:1"></span><button class="btn" id="kpGo" title="지금 분석 결과에서 같은 출발 세션의 체인을 찾아 2번 목록에서 보기">지금 분석에서 찾기</button><button class="btn" id="kpDel">킵 해제</button>
         <input type="text" id="kpNote" placeholder="메모 (예: 공격자 2차 유출 구간, 보고서 3.2절)" value="${esc(k.note || '')}"></div>` : ''}
       <div class="steps">${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
+      <div class="pbar"><span class="hint" title="그래프·순서표를 이 기간으로 잘라 봄 (체인 판정은 그대로)">보기 기간</span>
+        <input type="datetime-local" id="wA" value="${toIn(va)}" min="${toIn(lo)}" max="${toIn(hi)}"><span>~</span><input type="datetime-local" id="wB" value="${toIn(vb)}" min="${toIn(lo)}" max="${toIn(hi)}">
+        <button class="btn" id="wPrev" title="지금 길이만큼 앞으로">◀</button><button class="btn" id="wNext" title="지금 길이만큼 뒤로">▶</button>
+        <button class="btn" id="wDay" title="시작 날짜 하루">하루</button><button class="btn" id="wMon" title="시작 날짜가 든 달">한 달</button><button class="btn" id="wAll"${win ? '' : ' disabled'}>전체</button>
+        <span class="hint">${win ? `<b style="color:var(--accent)">${win.unit === 'month' ? periodLabel(win.base, 'month') : win.unit === 'day' ? periodLabel(win.base, 'day') : fDur(win.b - win.a)}</b> 보는 중 · 순서표 ${evAll.length - ev.length}행 숨김 · ` : spanD > 3 ? `<b style="color:var(--warn)">생명주기 ${Math.round(spanD)}일</b> — ` : ''}그래프 드래그 = 확대 · 더블클릭 = 전체</span></div>
     </div>
     <div class="gwrap" id="gantt"></div>
     <div class="legend"><span class="gtools"><button class="btn" id="gBig" title="그래프만 화면 전체로">⛶ 크게 보기</button><label class="ctl" title="줄·막대 높이를 줄여 한 화면에 더 많이"><input type="checkbox" id="gDense"${S.gdense ? ' checked' : ''}> 촘촘히</label></span>${Object.entries(ROLE).map(([k, v]) => `<span><i style="background:${v.c}"></i>${v.t}</span>`).join('')}<span><i style="background:none;border-top:1px dashed var(--faint);height:0;width:14px"></i>exit 후 복귀</span><span><i style="background:repeating-linear-gradient(45deg,var(--r-other) 0 2px,transparent 2px 4px)"></i>빗금 = pty 아님 (sftp·scp 등 가능)</span><span>같은 서버에서 겹친 세션은 줄을 나눠 표시 · <b style="color:var(--warn)">동시 N</b> = 창 N개가 열려 있던 때가 있음</span><span class="hint">막대에 마우스 → 해당 행 표시 · 막대 클릭 → 그 행으로 이동</span></div>
@@ -1131,8 +1199,30 @@ function detailInto(ch, k) {
           <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${ipBadge(x)}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
           <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`;
       }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
+  // unit: 'day'·'month' 로 고른 기간이면 ◀ ▶ 가 달력 단위로 넘어감 (생명주기 밖은 잘라냄)
+  const setWin = (a, b, unit = null, base = null) => {
+    a = Math.max(lo, Math.min(a, hi - 60000)); b = Math.min(hi, Math.max(b, a + 60000));
+    S.win = { key: wkey, a, b, unit, base: base == null ? a : base }; renderDetail();
+  };
+  const unitWin = (base, unit) => setWin(base, periodNext(base, unit), unit, base);
+  const unitPrev = (base, unit) => unit === 'month' ? (d => Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))(new Date(base)) : base - 86400000;
+  const zoom = (a, b) => { if (a == null) { S.win = null; renderDetail(); } else setWin(a, b); };
   drawGantt(ch);
   if (S.gfull) drawFull(ch);
+  $('#gantt').onzoom = zoom; $('#ganttFull').onzoom = zoom;
+  const inT = v => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null; };
+  $('#wA').onchange = $('#wB').onchange = () => { const a = inT($('#wA').value), b = inT($('#wB').value); if (a != null && b != null && b > a) setWin(a, b); };
+  $('#wPrev').onclick = () => {
+    if (win && win.unit) { const p = unitPrev(win.base, win.unit); if (periodNext(p, win.unit) > lo) unitWin(p, win.unit); return; }
+    const L = vb - va; setWin(Math.max(lo, va - L), Math.max(lo, va - L) + L);
+  };
+  $('#wNext').onclick = () => {
+    if (win && win.unit) { const n = periodNext(win.base, win.unit); if (n < hi) unitWin(n, win.unit); return; }
+    const L = vb - va; setWin(Math.min(hi - L, vb), Math.min(hi - L, vb) + L);
+  };
+  $('#wDay').onclick = () => unitWin(periodStart(va, 'day'), 'day');
+  $('#wMon').onclick = () => unitWin(periodStart(va, 'month'), 'month');
+  $('#wAll').onclick = () => { S.win = null; renderDetail(); };
   $('#gBig').onclick = () => { S.gfull = true; $('#gfull').hidden = false; drawFull(ch); };
   $('#gDense').onchange = e => setDense(e.target.checked);
   const rr = $('#refRows'); if (rr) rr.onchange = () => { S.refRows = rr.checked; renderDetail(); };
@@ -1154,6 +1244,7 @@ function detailInto(ch, k) {
   box.onmouseover = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, true); };
   box.onmouseout = e => { const t = e.target.closest('[data-sid]'); if (t) hl(t.dataset.sid, false); };
   box.querySelector('#gantt').onclick = e => {
+    if ($('#gantt')._dragged) return;
     const t = e.target.closest('[data-sid]'), row = t && document.getElementById('ev-' + t.dataset.sid);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
@@ -1236,14 +1327,17 @@ function drawGantt(ch, boxId = 'gantt') {
   const box = document.getElementById(boxId);
   if (!box) return;
   const order = topoOrder([...ch.lvs]);
-  const defs = order.map(lv => ({ key: lv, list: ch.list.filter(x => x.lv === lv) }))
-    .concat(refLanes(ch).map((r, i) => ({ key: 'r' + i, ref: r, list: r.list })));
+  const WIN = ch._win, ov = x => !WIN || (x.s <= WIN[1] && (x.e == null ? Infinity : x.e) >= WIN[0]);   // 보기 기간과 겹치는 것만
+  for (const x of ch.list) x._vis = false;
+  const defs = order.map(lv => ({ key: lv, list: ch.list.filter(x => x.lv === lv && ov(x)) }))
+    .concat(refLanes(ch).map((r, i) => ({ key: 'r' + i, ref: r, list: r.list.filter(ov) })));
   const laneOf = new Map(defs.map((d, k) => [d.key, k]));
   // 촘촘히: 줄·막대 높이를 줄여 세로 길이를 절반 가까이로 (서버 정보는 이름 옆 한 줄)
   const dense = S.gdense, RH = dense ? 12 : 20, BH = dense ? 9 : 15, LPAD = dense ? 3 : 6, MINH = dense ? 20 : 36, FS = dense ? 9 : 11;
   const cs = getComputedStyle(box), W = Math.max(520, box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2), LW = 104, RP = 14, TOP = 20;
-  const t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0);
-  const pad0 = (t1 - t0) * 0.02, a = t0 - pad0, b = t1 + pad0;
+  let t0 = ch.t0, t1 = Math.max(ch.t1, t0 + 60000) + (ch.open ? (ch.t1 - t0) * 0.08 + 60000 : 0), a, b;
+  if (WIN) { a = WIN[0]; b = WIN[1]; t1 = b; }
+  else { const pad0 = (t1 - t0) * 0.02; a = t0 - pad0; b = t1 + pad0; }
   const X = t => LW + (Math.min(b, Math.max(a, t)) - a) / (b - a) * (W - LW - RP);   // 비교 서버 세션은 화면 범위로 잘라 그림
   const isPty = x => /^(pts|tty|vc|console|:)/.test(x.tty);
   // 서버마다 세션을 칸에 배치: 시작 순으로 놓되, 화면에서 앞 막대(글자 포함)와 겹치면 아래 칸으로
@@ -1254,7 +1348,7 @@ function drawGantt(ch, boxId = 'gantt') {
       const need = Math.max(x2, x1 + (x2 - x1 > 70 ? 0 : 74));      // 짧은 막대는 오른쪽 글자 자리까지
       let r = rowEnd.findIndex(end => end + 4 <= x1);
       if (r < 0) { r = rowEnd.length; rowEnd.push(0); }
-      rowEnd[r] = need; x._row = r; x._x1 = x1; x._x2 = x2;
+      rowEnd[r] = need; x._row = r; x._x1 = x1; x._x2 = x2; x._vis = true;
     }
     // 동시에 열려 있던 최대 세션 수: 시작 +1, 종료 -1 을 시간순으로 훑기 (같은 시각이면 종료 먼저)
     const evs = [];
@@ -1305,7 +1399,7 @@ function drawGantt(ch, boxId = 'gantt') {
   });
   // 연결선 먼저, 막대는 위에
   for (const x of ch.list) {
-    if (!x.parent) continue;
+    if (!x.parent || !x._vis || !x.parent._vis) continue;
     const c = ROLE[x.role].c, y = barY(x), py = barY(x.parent) + BH, x1 = x._x1, x2 = x._x2;
     g += `<line x1="${x1}" x2="${x1}" y1="${py}" y2="${y}" stroke="${c}" stroke-width="1.5"/><path d="M${x1 - 3},${y - 4} L${x1},${y} L${x1 + 3},${y - 4}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
     if (x.e != null && x.role !== 'fetch') g += `<line x1="${x2}" x2="${x2}" y1="${y}" y2="${py}" stroke="var(--faint)" stroke-dasharray="3 3"/>`;
@@ -1327,6 +1421,29 @@ function drawGantt(ch, boxId = 'gantt') {
     g += '</g>';
   }
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
+  // 드래그한 구간으로 확대, 더블클릭이면 전체 (box.onzoom 은 상세 화면이 정해 줌)
+  const svg = box.querySelector('svg'), inv = px => a + (px - LW) / (W - LW - RP) * (b - a);
+  svg.onmousedown = e => {
+    if (e.button) return;
+    const r = svg.getBoundingClientRect(), x0 = e.clientX - r.left;
+    if (x0 < LW) return;
+    e.preventDefault();
+    let sel = null, x1 = x0;
+    const mv = ev => {
+      x1 = Math.max(LW, Math.min(W - RP, ev.clientX - r.left));
+      if (Math.abs(x1 - x0) < 6) return;
+      if (!sel) { sel = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); sel.setAttribute('class', 'zsel'); sel.setAttribute('y', 0); sel.setAttribute('height', H); svg.appendChild(sel); }
+      sel.setAttribute('x', Math.min(x0, x1)); sel.setAttribute('width', Math.abs(x1 - x0));
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+      if (!sel) return;
+      box._dragged = true; setTimeout(() => { box._dragged = false; }, 0);
+      if (box.onzoom) box.onzoom(inv(Math.min(x0, x1)), inv(Math.max(x0, x1)));
+    };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  };
+  svg.ondblclick = () => { if (box.onzoom) box.onzoom(null); };
 }
 
 /* ───────── 렌더: 노드 로그 보기 · 비교 (디버그) ─────────
@@ -1585,6 +1702,7 @@ function sampleData() {
   $('#gfClose').onclick = closeFull;
   $('#gfDense').onchange = e => setDense(e.target.checked);
   $('#ganttFull').onclick = e => {                 // 막대 누르면 닫고 순서표의 그 행으로
+    if ($('#ganttFull')._dragged) return;
     const t = e.target.closest('[data-sid]'); if (!t) return;
     closeFull();
     const row = document.getElementById('ev-' + t.dataset.sid);
