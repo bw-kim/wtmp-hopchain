@@ -180,6 +180,14 @@ body.nosc{overflow:hidden}
 .pbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px}
 .pbar input{font-size:12px;padding:2px 4px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color-scheme:inherit}
 .zsel{fill:var(--accent);fill-opacity:.15;stroke:var(--accent)}
+.heatwrap{overflow-x:auto;padding:6px 12px}
+.heatwrap svg{display:block}
+.heatwrap text{font-family:var(--sans)}
+.heatwrap .hl{font-size:10px;fill:var(--muted)}
+.heatwrap .hn{font-size:11.5px;font-weight:700;fill:var(--text)}
+.heatwrap .hc{cursor:pointer}
+.heatwrap .hc:hover{stroke:var(--text);stroke-width:1}
+.hbar select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
 .gtools{display:inline-flex;align-items:center;gap:8px;margin-right:6px}
 .kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
 @media (max-width:900px){
@@ -264,6 +272,9 @@ tr.selrow td{background:var(--accent-bg)}
     <section class="panel" id="detail"></section>
   </div>
 
+  <h2 class="sect">3. 시간대 대조 지도 <small>켜진 모든 서버(체인·비교)의 로그인을 시간 칸에 겹쳐 놓고, 여러 서버가 몇 분 안에 함께 로그인한 시간대를 의심 순으로 뽑습니다 — 체인으로 이어지지 않는 서버도 같이 대조</small></h2>
+  <div class="panel" id="heat"></div>
+
   <h2 class="sect">4. 노드 로그 보기 · 비교 <small>한 노드의 last 로그를 날짜별로 보기 + 왼쪽(앞 노드) 세션을 누르면 오른쪽(다음 노드)에서 그 세션 시간 안에 완전히 들어간 로그인만 진하게 — A 로 들어와 B 로 점프한 세션 찾기용, 체인 판정과 별개로 원본 세션 그대로</small></h2>
   <div class="panel" id="all"></div>
 
@@ -274,6 +285,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>시간대 대조 지도</b>(3번): 켜진 모든 서버의 로그인을 일·시간·10분 칸에 겹쳐 보여 주고, 서로 다른 서버 여러 대가 <b>동시 범위</b>(기본 15분) 안에 함께 로그인한 묶음을 점수 순으로 뽑습니다. 점수는 서버 수, 체인 순서(앞 서버 첫 로그인 뒤에 들어갔나), 출발 IP, 비교 서버 포함, 그 서버에서 처음 보는 출발지, 새벽 시간대로 매기며, 각 후보에서 바로 2번 체인(그 시간대로 확대)이나 4번 비교로 갈 수 있습니다. 회색 빗금 칸은 그 서버 로그가 없는 때입니다.<br>
     · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
     · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 세로줄이 빽빽한 빗 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
     · <b>킵</b>: 체인 목록의 ☆ 나 상세 화면의 <b>☆ 킵</b> 을 누르면 그 순간의 체인·비교 라인·순서표와 설정을 그대로 보관합니다. 왼쪽 위 <b>★ 킵</b> 탭에서 나중에 설정을 바꾼 뒤에도 그때 모습 그대로 다시 볼 수 있고, 메모를 달거나 JSON 으로 내보내기·가져오기 할 수 있습니다.<br>
@@ -288,7 +300,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, wsfull: false, ttoff: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pivot: null, hm: { unit: 'day', base: 0, w: 15, min: 2, noLocal: true, pivotOnly: false, sel: null, more: false }, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, wsfull: false, ttoff: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -615,6 +627,8 @@ function originMatch(h, pats) {
 // 출발 IP 를 넣을 칸: 켜진 서버 중 앞 서버가 없는 첫 칸 (보통 A)
 const originSlot = () => S.slots.find(sl => !sl.off && !sl.ref && !activeParent(sl)) || null;
 // 부모로 볼 때의 끝 시각: 실제 끝(없으면 무한) 과 "시작 + 긴 세션 상한" 중 이른 쪽
+// IP·계정 따라가기: 고른 값과 같은 세션인가
+const pivotHit = x => !!S.pivot && (S.pivot.kind === 'ip' ? x.host === S.pivot.v : x.user === S.pivot.v);
 const capMs = () => S.maxPar > 0 ? S.maxPar * 3600000 : Infinity;
 const parentEnd = p => Math.min(p.eHi == null ? Infinity : p.eHi, p.s + capMs());
 // 그 서버 앞에서(GUI·콘솔) 또는 tmux·screen 안에서 생긴 로컬 세션 — 앞 서버에서 점프해 온 것일 수 없음
@@ -916,7 +930,7 @@ function schedule() {
 }
 
 /* ───────── 렌더: 체인 목록 ───────── */
-function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderAll(); }
+function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderHeat(); renderAll(); }
 const nm = k => esc(AS[k]?.name || NAMES[k]);
 // 화면용 HTML → 복사·CSV 용 글자 (태그 제거 + &#39; 같은 문자 풀기)
 const plainText = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; };
@@ -1520,6 +1534,218 @@ function drawGantt(ch, boxId = 'gantt') {
   svg.ondblclick = () => { if (box.onzoom) box.onzoom(null); };
 }
 
+/* ───────── 3. 시간대 대조 지도 ─────────
+   켜진 모든 서버(체인·비교)의 로그인을 시간 칸에 겹쳐 놓고, 여러 서버가 몇 분 안에 함께 로그인한 묶음(동시 활동)을
+   점수 매겨 의심 시간대 후보로 뽑는다. 체인으로 이어지지 않는 서버도 같은 기준으로 대조할 수 있다 */
+const HU = [['day', '일 (전체 기간)'], ['hour', '시간 (1주씩)'], ['min10', '10분 (하루씩)']];
+const bucketMs = u => u === 'day' ? 86400000 : u === 'hour' ? 3600000 : 600000;
+function heatData() {
+  const key = [S.hm.w, S.hm.min, S.hm.noLocal, S.pivot ? S.pivot.kind + S.pivot.v : '', S.hm.pivotOnly].join('|');
+  if (R._heat && R._heatKey === key) return R._heat;
+  const W = S.hm.w * 60000, srv = S.slots.filter(sl => !sl.off);
+  const og = originSlot(), pats = og ? splitIps(og.origin) : [];
+  const logins = [];
+  srv.forEach((sl, si) => sl.sessions.forEach((x, idx) => {
+    if (S.hm.noLocal && isLocalLogin(x)) return;
+    if (sl === og && pats.length && !originMatch(x.host, pats)) return;
+    if (S.hm.pivotOnly && S.pivot && !pivotHit(x)) return;
+    logins.push({ x, si, sl, idx });
+  }));
+  logins.sort((a, b) => a.x.s - b.x.s);
+  // 서버마다 처음 보는 출발지
+  const seen = srv.map(() => new Set());
+  for (const l of logins) { l.newHost = !!l.x.host && !isLocalLogin(l.x) && !seen[l.si].has(l.x.host); seen[l.si].add(l.x.host); }
+  // 동시 활동: 한 로그인에서 시작해 W 분 안의 로그인을 묶음 (길이가 W 로 고정돼 바쁜 시간대에 끝없이 늘어나지 않음)
+  const groups = [];
+  for (let i = 0; i < logins.length;) {
+    const t0 = logins[i].x.s, items = [];
+    while (i < logins.length && logins[i].x.s <= t0 + W) items.push(logins[i++]);
+    const srvSet = new Set(items.map(l => l.si));
+    if (srvSet.size >= S.hm.min) groups.push({ t0, t1: items[items.length - 1].x.s, items, srvN: srvSet.size });
+  }
+  // 점수와 근거
+  const tol = S.tol * 1000;
+  for (const g of groups) {
+    const first = new Map();
+    for (const l of g.items) if (!first.has(l.si)) first.set(l.si, l.x.s);
+    // 체인 순서: 앞 서버(켜진 서버 기준)의 첫 로그인보다 뒤에 들어갔나
+    let hops = 0, hopTot = 0;
+    for (const [si] of first) {
+      const sl = srv[si]; if (sl.ref) continue;
+      const p = activeParent(sl), pi = p ? srv.indexOf(p) : -1;
+      if (pi >= 0 && first.has(pi)) { hopTot++; if (first.get(si) >= first.get(pi) - tol) hops++; }
+    }
+    const originHit = !!(og && pats.length && g.items.some(l => l.sl === og));
+    const hr = new Date(g.t0).getUTCHours(), night = hr < 6;
+    const newN = g.items.filter(l => l.newHost).length;
+    const refIn = g.items.some(l => l.sl.ref);
+    const pv = S.pivot ? g.items.filter(l => pivotHit(l.x)).length : 0;
+    g.order = [...first.entries()].sort((a, b) => a[1] - b[1]).map(([si, t]) => ({ si, t }));
+    g.why = { hops, hopTot, originHit, night, newN, refIn, pv };
+    g.score = g.srvN * 10 + hops * 5 + (originHit ? 10 : 0) + (night ? 3 : 0) + Math.min(3, newN) * 2 + (refIn ? 4 : 0) + (pv ? 8 : 0);
+  }
+  const ranked = groups.slice().sort((a, b) => b.score - a.score || a.t0 - b.t0);
+  ranked.forEach((g, i) => { g.rank = i + 1; g.id = 'g' + g.t0 + '_' + i; });
+  let lo = Infinity, hi = -Infinity;
+  for (const sl of srv) {
+    for (const c of sl.cov || []) { lo = Math.min(lo, c.lo); hi = Math.max(hi, c.hi); }
+    for (const x of sl.sessions) { lo = Math.min(lo, x.s); hi = Math.max(hi, x.s); }
+  }
+  R._heat = { srv, logins, groups, ranked, lo, hi };
+  R._heatKey = key;
+  return R._heat;
+}
+function heatRange(H) {               // 지금 단위에서 보이는 [시작, 끝)
+  const u = S.hm.unit;
+  if (u === 'day') return [periodStart(H.lo, 'day'), periodStart(H.hi, 'day') + 86400000];
+  if (!S.hm.base) S.hm.base = periodStart(H.ranked[0] ? H.ranked[0].t0 : H.lo, u === 'hour' ? 'week' : 'day');
+  return [S.hm.base, S.hm.base + (u === 'hour' ? 7 : 1) * 86400000];
+}
+function renderHeat() {
+  const box = $('#heat');
+  const srvAll = S.slots.filter(sl => !sl.off);
+  if (!R || srvAll.filter(sl => sl.sessions.length).length < 1) { box.innerHTML = '<div class="empty">서버에 로그를 넣으면 시간대 지도가 나옵니다.</div>'; return; }
+  const H = heatData(), u = S.hm.unit, BM = bucketMs(u);
+  if (!isFinite(H.lo)) { box.innerHTML = '<div class="empty">로그인 기록이 없습니다.</div>'; return; }
+  const [ra, rb] = heatRange(H), nb = Math.round((rb - ra) / BM);
+  const counts = H.srv.map(() => new Uint32Array(nb)), gcount = new Uint32Array(nb), pvc = H.srv.map(() => new Uint32Array(nb));
+  for (const l of H.logins) {
+    const b = Math.floor((l.x.s - ra) / BM); if (b < 0 || b >= nb) continue;
+    counts[l.si][b]++;
+    if (S.pivot && pivotHit(l.x)) pvc[l.si][b]++;
+  }
+  for (const g of H.groups) { const b = Math.floor((g.t0 - ra) / BM); if (b >= 0 && b < nb) gcount[b]++; }
+  const avail = Math.max(600, box.clientWidth - 40), LW = 92;
+  const cw = Math.max(u === 'day' ? 4 : 5, Math.min(u === 'day' ? 18 : 12, Math.floor((avail - LW) / nb)));
+  const RH = 18, TOP = 30, W = LW + nb * cw + 4, Ht = TOP + (H.srv.length + 1) * RH + 6;
+  let g = `<defs><pattern id="hnolog" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="5" height="5" fill="var(--panel2)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--faint)" stroke-width="1.5" stroke-opacity=".5"/></pattern></defs>`;
+  // 위쪽 눈금
+  for (let b = 0; b < nb; b++) {
+    const t = ra + b * BM, d = new Date(t), x = LW + b * cw;
+    let lab = '', major = false;
+    if (u === 'day') { if (d.getUTCDate() === 1) { lab = `${d.getUTCFullYear() % 100}.${d.getUTCMonth() + 1}`; major = true; } else if (nb <= 70 && d.getUTCDay() === 1) lab = String(d.getUTCDate()); }
+    else if (u === 'hour') { if (d.getUTCHours() === 0) { lab = `${fD(t).slice(5)} (${'일월화수목금토'[d.getUTCDay()]})`; major = true; } else if (d.getUTCHours() % 6 === 0 && cw >= 5) lab = String(d.getUTCHours()); }
+    else { if (d.getUTCMinutes() === 0 && d.getUTCHours() % (cw >= 8 ? 1 : 2) === 0) { lab = pad(d.getUTCHours()); major = d.getUTCHours() % 6 === 0; } }
+    if (lab) g += `<line x1="${x}" x2="${x}" y1="${major ? 6 : 18}" y2="${Ht - 4}" stroke="var(--line${major ? '' : '2'})"/><text x="${x + 2}" y="${major ? 14 : 26}" class="hl">${lab}</text>`;
+  }
+  // 서버 줄
+  H.srv.forEach((sl, si) => {
+    const y = TOP + si * RH, row = counts[si];
+    let mx = 0; for (const v of row) if (v > mx) mx = v;
+    g += `<text x="6" y="${y + 13}" class="hn"${sl.ref ? ' style="fill:var(--r-ref)"' : ''}>${esc(sl.name)}${sl.ref ? '<tspan style="font-size:9px"> 비교</tspan>' : ''}</text>`;
+    const cov = sl.cov;
+    for (let b = 0; b < nb; b++) {
+      const t = ra + b * BM, x = LW + b * cw, v = row[b];
+      const z = noLogSpans(cov, t, t + BM);
+      if (z.length && z[0].a <= t && z[z.length - 1].b >= t + BM && z.reduce((s2, q) => s2 + (q.b - q.a), 0) >= BM - 1) {
+        g += `<rect x="${x}" y="${y + 1}" width="${cw - 1}" height="${RH - 2}" fill="url(#hnolog)" opacity="${z[0].est ? .5 : 1}"><title>${esc(sl.name)} 로그 없음 ${fDT(t)}</title></rect>`;
+        continue;
+      }
+      if (!v) continue;
+      const k = .18 + .82 * Math.sqrt(v / mx);
+      const pvn = pvc[si][b];
+      g += `<rect class="hc" data-t="${t}" x="${x}" y="${y + 1}" width="${cw - 1}" height="${RH - 2}" rx="1" fill="${sl.ref ? 'var(--r-ref)' : 'var(--accent)'}" fill-opacity="${k.toFixed(2)}"${pvn ? ' stroke="var(--warn)" stroke-width="1.5"' : ''}><title>${esc(sl.name)} ${fDT(t)}${u === 'day' ? '' : ' ~ ' + fT(t + BM)} 로그인 ${v}건${pvn ? ` (따라가는 ${esc(S.pivot.v)} ${pvn}건)` : ''}</title></rect>`;
+    }
+  });
+  // 동시 활동 줄
+  const yG = TOP + H.srv.length * RH;
+  let gmx = 0; for (const v of gcount) if (v > gmx) gmx = v;
+  g += `<line x1="0" x2="${W}" y1="${yG}" y2="${yG}" stroke="var(--line)"/><text x="6" y="${yG + 13}" class="hn" style="fill:var(--warn)">동시 활동</text>`;
+  for (let b = 0; b < nb; b++) {
+    const v = gcount[b]; if (!v) continue;
+    const t = ra + b * BM;
+    g += `<rect class="hc" data-t="${t}" x="${LW + b * cw}" y="${yG + 1}" width="${cw - 1}" height="${RH - 2}" rx="1" fill="var(--warn)" fill-opacity="${(.3 + .7 * Math.sqrt(v / gmx)).toFixed(2)}"><title>${fDT(t)} 동시 활동 ${v}묶음 (서버 ${S.hm.min}개 이상이 ${S.hm.w}분 안에 로그인)</title></rect>`;
+  }
+  // 고른 후보 표시
+  const sel = H.ranked.find(x => x.id === S.hm.sel);
+  if (sel && sel.t1 >= ra && sel.t0 < rb) {
+    const x1 = LW + Math.max(0, (sel.t0 - ra) / BM) * cw, x2 = LW + Math.min(nb, (sel.t1 - ra) / BM + 1) * cw;
+    g += `<rect x="${x1 - 1}" y="${TOP - 2}" width="${Math.max(3, x2 - x1 + 2)}" height="${(H.srv.length + 1) * RH + 4}" fill="none" stroke="var(--text)" stroke-width="1.5" rx="2" pointer-events="none"/>`;
+  }
+  // 위쪽 조작
+  const prevOk = u !== 'day' && S.hm.base > periodStart(H.lo, u === 'hour' ? 'week' : 'day');
+  const nextOk = u !== 'day' && rb <= H.hi;
+  const lab = u === 'day' ? `${fD(ra)} ~ ${fD(rb - 1)}` : u === 'hour' ? `${fD(ra)} ~ ${fD(rb - 1).slice(5)} (1주)` : periodLabel(ra, 'day');
+  const top = H.ranked.slice(0, S.hm.more ? 100 : 15);
+  box.innerHTML = `
+    <div class="tbar hbar">
+      <button class="btn" id="hPrev"${prevOk ? '' : ' disabled'}>◀</button>
+      <select id="hUnit">${HU.map(([k, t]) => `<option value="${k}"${u === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
+      <b>${lab}</b>
+      <button class="btn" id="hNext"${nextOk ? '' : ' disabled'}>▶</button>
+      <span class="hint">칸을 누르면 더 자세히</span><span class="spacer"></span>
+      <label class="ctl" title="이 시간 안에 서로 다른 서버에서 로그인이 생기면 '동시 활동' 으로 묶음">동시 범위(분) <input type="number" id="hW" value="${S.hm.w}" min="1" step="1" style="width:56px"></label>
+      <label class="ctl">최소 서버 <select id="hMin">${[2, 3, 4, 5].map(n => `<option${S.hm.min === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="ctl" title="seat0·:0·tty1 같은 그 서버 앞 로그인은 빼고 셈"><input type="checkbox" id="hLocal"${S.hm.noLocal ? ' checked' : ''}> 로컬 로그인 제외</label>
+      ${S.pivot ? `<label class="ctl"><input type="checkbox" id="hPv"${S.hm.pivotOnly ? ' checked' : ''}> 따라가는 ${esc(S.pivot.v)} 만</label>` : ''}
+    </div>
+    <div class="heatwrap"><svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}">${g}</svg></div>
+    <div class="tbar"><b>의심 시간대 순위</b><span class="hint">서버 ${S.hm.min}개 이상이 ${S.hm.w}분 안에 함께 로그인한 묶음 ${H.groups.length}개 — 점수 = 서버 수 ×10 · 체인 순서 맞음 ×5 · 출발 IP +10 · 비교 서버 +4 · 처음 보는 출발지 ×2 · 새벽(0~6시) +3${S.pivot ? ' · 따라가는 값 +8' : ''}</span></div>
+    <div class="scroll" style="max-height:420px"><table><thead><tr><th>#</th><th>점수</th><th>시각</th><th>들어간 순서</th><th>근거</th><th></th></tr></thead><tbody>
+    ${top.length ? top.map(gr => {
+      const w = gr.why, chId = groupChain(gr);
+      const badges = [`<span class="bd">서버 ${gr.srvN}</span>`, w.hopTot ? `<span class="bd ${w.hops === w.hopTot ? 'ok' : 'warn'}" title="앞 서버 첫 로그인보다 뒤에 들어간 연결">순서 ${w.hops}/${w.hopTot}</span>` : '',
+        w.originHit ? '<span class="bd acc">출발 IP</span>' : '', w.refIn ? '<span class="bd rf">비교 서버</span>' : '', w.newN ? `<span class="bd warn" title="그 서버에서 처음 보는 출발지">처음 보는 출발지 ${w.newN}</span>` : '',
+        w.night ? '<span class="bd warn">새벽</span>' : '', w.pv ? `<span class="bd warn">따라가는 값 ${w.pv}</span>` : ''].join(' ');
+      return `<tr class="clk${gr.id === S.hm.sel ? ' selrow' : ''}" data-g="${gr.id}"><td class="dim">${gr.rank}</td><td class="tm"><b>${gr.score}</b></td>
+        <td class="tm">${fDT(gr.t0)}${gr.t1 > gr.t0 ? ' ~ ' + fT(gr.t1) : ''}</td>
+        <td class="mono">${gr.order.map(o => `<span${H.srv[o.si].ref ? ' style="color:var(--r-ref)"' : ''}>${esc(H.srv[o.si].name)}</span> <span class="dim">${fT(o.t)}</span>`).join(' → ')}</td>
+        <td>${badges}</td>
+        <td style="white-space:nowrap">${chId ? `<button class="btn" data-go="chain" data-ch="${chId}">체인 보기</button> ` : ''}<button class="btn" data-go="dbg">4번에서 보기</button></td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">조건에 맞는 동시 활동이 없습니다. 동시 범위를 늘리거나 최소 서버를 줄여 보세요.</td></tr>'}
+    </tbody></table></div>
+    ${H.ranked.length > top.length ? `<div class="tbar"><button class="btn" id="hMore">${S.hm.more ? '15개만' : '100개까지 더 보기'}</button><span class="hint">전체 ${H.ranked.length}개</span></div>` : ''}`;
+  // 조작
+  $('#hUnit').onchange = e => { S.hm.unit = e.target.value; S.hm.base = 0; renderHeat(); };
+  $('#hPrev').onclick = () => { S.hm.base = u === 'hour' ? S.hm.base - 7 * 86400000 : S.hm.base - 86400000; renderHeat(); };
+  $('#hNext').onclick = () => { S.hm.base = rb; renderHeat(); };
+  $('#hW').onchange = e => { S.hm.w = Math.max(1, +e.target.value || 15); renderHeat(); };
+  $('#hMin').onchange = e => { S.hm.min = +e.target.value; renderHeat(); };
+  $('#hLocal').onchange = e => { S.hm.noLocal = e.target.checked; renderHeat(); };
+  const hp = $('#hPv'); if (hp) hp.onchange = e => { S.hm.pivotOnly = e.target.checked; renderHeat(); };
+  const hm = $('#hMore'); if (hm) hm.onclick = () => { S.hm.more = !S.hm.more; renderHeat(); };
+  box.querySelector('svg').onclick = e => {           // 칸 → 한 단계 자세히
+    const c = e.target.closest('.hc'); if (!c) return;
+    const t = +c.dataset.t;
+    if (u === 'day') { S.hm.unit = 'hour'; S.hm.base = periodStart(t, 'week'); }
+    else if (u === 'hour') { S.hm.unit = 'min10'; S.hm.base = periodStart(t, 'day'); }
+    else { const gr = H.ranked.find(x => x.t0 >= t && x.t0 < t + BM); if (gr) S.hm.sel = gr.id; }
+    renderHeat();
+  };
+  box.querySelectorAll('tr[data-g]').forEach(tr => tr.onclick = e => {
+    const gr = H.ranked.find(x => x.id === tr.dataset.g); if (!gr) return;
+    S.hm.sel = gr.id;
+    const go = e.target.closest('[data-go]');
+    if (go && go.dataset.go === 'chain') { gotoChainWindow(go.dataset.ch, gr.t0 - 15 * 60000, gr.t1 + 45 * 60000); return; }
+    if (go && go.dataset.go === 'dbg') { gotoDbg(gr); return; }
+    S.hm.unit = 'min10'; S.hm.base = periodStart(gr.t0, 'day'); renderHeat();   // 행을 누르면 그 날 10분 단위로
+  });
+}
+// 묶음의 로그인이 가장 많이 들어간 체인
+function groupChain(gr) {
+  const cnt = new Map();
+  for (const l of gr.items) {
+    const pos = AS.indexOf(l.sl); if (pos < 0) continue;
+    const ch = R.byId.get(pos + ':' + l.idx); if (ch) cnt.set(ch.root.id, (cnt.get(ch.root.id) || 0) + 1);
+  }
+  let best = null, bn = 0; for (const [id, n] of cnt) if (n > bn) { best = id; bn = n; }
+  return best;
+}
+function gotoChainWindow(id, a, b) {
+  S.view = 'chains'; S.cf = 'all'; S.cq = ''; $('#cq').value = ''; S.pu = 'all';
+  S.sel = id; renderChains(); select(id);
+  const ch = R.chains.find(c => c.root.id === id);
+  if (ch) { S.win = { key: 'c:' + id, a: Math.max(ch.t0, a), b: Math.max(Math.max(ch.t0, a) + 60000, b) }; renderDetail(); }
+  $('#ws').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function gotoDbg(gr) {
+  const D = S.dbg, sis = gr.order.map(o => S.slots.indexOf(gr.items.find(l => l.si === o.si).sl));
+  D.l = sis[0]; D.r = sis[1] != null ? sis[1] : -1; D.side = null; D.idx = -1; D.only = false;
+  D.ql = D.qr = fD(gr.t0);
+  renderAll();
+  $('#all').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 /* ───────── 렌더: 노드 로그 보기 · 비교 (디버그) ─────────
    체인 판정과 별개로 원본 세션을 그대로 보여준다. 한쪽 세션을 누르면 다른 쪽에서
    그 시간 안에 "완전히 들어간" 세션만 진하게, 나머지는 흐리게 */
@@ -1767,6 +1993,7 @@ function sampleData() {
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => e.preventDefault());
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => {
+    if (R) renderHeat();
     const draw = ch => drawGantt(ch);
     if (S.view === 'keep') { const k = KEEPS.find(x => x.key === S.keepSel); if (k) withKeep(k, draw); return; }
     const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) draw(ch);
