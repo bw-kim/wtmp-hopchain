@@ -180,6 +180,12 @@ body.nosc{overflow:hidden}
 .pbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px}
 .pbar input{font-size:12px;padding:2px 4px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color-scheme:inherit}
 .zsel{fill:var(--accent);fill-opacity:.15;stroke:var(--accent)}
+.pv{cursor:pointer;border-bottom:1px dotted var(--faint)}
+.pv:hover{color:var(--warn)}
+.pv.on{color:var(--warn);font-weight:700;border-bottom-color:var(--warn)}
+tr.pvrow td{background:rgba(233,192,74,.13)}
+.pvbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;padding:3px 10px;border:1px solid var(--warn);border-radius:999px;color:var(--warn)}
+.pvbar .z{color:var(--faint)}
 .heatwrap{overflow-x:auto;padding:6px 12px}
 .heatwrap svg{display:block}
 .heatwrap text{font-family:var(--sans)}
@@ -234,6 +240,8 @@ tr.selrow td{background:var(--accent-bg)}
     <label class="ctl" title="같은 시각으로 볼 허용 오차. last 기본 출력은 분 단위라 60초 이상 권장">허용 오차(초) <input type="number" id="tol" value="60" min="0" step="10"></label>
     <label class="ctl" title="이보다 길거나 로그아웃 기록이 없는 세션은, 다음 서버 로그인을 품는지 볼 때 시작 후 이 시간까지만 인정합니다. 몇 달씩 열린 세션이 그 기간의 모든 로그인을 자식으로 빨아들이는 것을 막습니다. 0 = 제한 없음">긴 세션 상한(시간) <input type="number" id="maxPar" value="24" min="0" step="1"></label>
     <label class="ctl" title="wtmp 바이너리와 ISO(+시간대) 형식 시각을 이 시간대로 바꿔 보여줍니다. 시간대가 없는 last 텍스트는 적힌 그대로 씁니다">표시 시간대 <input type="text" id="tz" value="+09:00"></label>
+    <input type="text" id="pvIn" placeholder="IP·계정 따라가기" title="IP 나 계정을 넣고 Enter — 모든 서버에서 그 값의 로그인을 강조. 순서표·4번 화면의 IP·계정을 눌러도 됩니다" style="width:150px">
+    <span class="pvbar" id="pvBar" hidden></span>
     <label class="ctl" title="서버 IP 칸을 채운 경우, 다음 서버 last 의 출발지(FROM)가 그 IP 인 세션만 연결"><input type="checkbox" id="strict"> 출발지 IP 일치만</label>
     <button class="btn" id="sample">예시 데이터</button>
     <button class="btn" id="theme">테마</button>
@@ -285,6 +293,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>IP·계정 따라가기</b>: 순서표나 4번 화면의 IP·계정(점선 밑줄)을 누르거나 위쪽 칸에 넣으면, 모든 서버에서 그 값의 로그인을 강조합니다(그래프 노란 테두리, 행 노란 바탕, 지도 칸 테두리). 위쪽 막대에 서버별 건수가 나오고, 체인 목록의 <b>따라가기</b> 필터로 그 값이 들어간 체인만 볼 수 있습니다.<br>
     · <b>시간대 대조 지도</b>(3번): 켜진 모든 서버의 로그인을 일·시간·10분 칸에 겹쳐 보여 주고, 서로 다른 서버 여러 대가 <b>동시 범위</b>(기본 15분) 안에 함께 로그인한 묶음을 점수 순으로 뽑습니다. 점수는 서버 수, 체인 순서(앞 서버 첫 로그인 뒤에 들어갔나), 출발 IP, 비교 서버 포함, 그 서버에서 처음 보는 출발지, 새벽 시간대로 매기며, 각 후보에서 바로 2번 체인(그 시간대로 확대)이나 4번 비교로 갈 수 있습니다. 회색 빗금 칸은 그 서버 로그가 없는 때입니다.<br>
     · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
     · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 세로줄이 빽빽한 빗 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
@@ -627,6 +636,24 @@ function originMatch(h, pats) {
 // 출발 IP 를 넣을 칸: 켜진 서버 중 앞 서버가 없는 첫 칸 (보통 A)
 const originSlot = () => S.slots.find(sl => !sl.off && !sl.ref && !activeParent(sl)) || null;
 // 부모로 볼 때의 끝 시각: 실제 끝(없으면 무한) 과 "시작 + 긴 세션 상한" 중 이른 쪽
+// IP·계정을 누를 수 있게 감싸기
+const pvA = (kind, v) => v && v !== '-' ? `<a class="pv${S.pivot && S.pivot.kind === kind && S.pivot.v === v ? ' on' : ''}" data-pk="${kind}" data-pv="${esc(v)}" title="${kind === 'ip' ? 'IP' : '계정'} 따라가기 — 모든 서버에서 강조">${esc(v)}</a>` : esc(v || '-');
+function setPivot(kind, v) {
+  S.pivot = !v || (S.pivot && S.pivot.kind === kind && S.pivot.v === v) ? null : { kind, v };
+  $('#pvIn').value = S.pivot ? S.pivot.v : '';
+  if (!S.pivot) { S.hm.pivotOnly = false; if (S.cf === 'pivot') S.cf = 'all'; }
+  renderPivotBar(); renderChains(); renderDetail(); renderHeat(); renderAll();
+}
+function renderPivotBar() {
+  const el = $('#pvBar');
+  el.hidden = !S.pivot;
+  if (!S.pivot) return;
+  const counts = S.slots.filter(sl => !sl.off).map(sl => [sl, sl.sessions.filter(pivotHit).length]);
+  el.innerHTML = `<b>따라가기 ${S.pivot.kind === 'ip' ? 'IP' : '계정'} ${esc(S.pivot.v)}</b> — `
+    + counts.map(([sl, n]) => `<span class="${n ? '' : 'z'}" title="${esc(sl.name)} 에서 ${n}건">${esc(sl.name)} ${n}</span>`).join(' · ')
+    + ` <a id="pvX" title="따라가기 끄기" style="cursor:pointer">✕</a>`;
+  $('#pvX').onclick = () => setPivot(null, null);
+}
 // IP·계정 따라가기: 고른 값과 같은 세션인가
 const pivotHit = x => !!S.pivot && (S.pivot.kind === 'ip' ? x.host === S.pivot.v : x.user === S.pivot.v);
 const capMs = () => S.maxPar > 0 ? S.maxPar * 3600000 : Infinity;
@@ -939,7 +966,8 @@ const candN = x => x.cands.length + (x.candMore ? '+' : '');
 // 화면에 한 번에 그리는 최대 개수 (많으면 DOM 이 느려짐 — CSV·복사에는 전부 들어감)
 const CAP_CHAINS = 120, CAP_EVENTS = 1500;
 function chainPath(ch) { return topoText([...ch.lvs]); }
-const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치'], ['ref', '비교 겹침']];
+const CF = [['all', '전체'], ['full', '전 구간'], ['pattern', '패턴 일치'], ['ref', '비교 겹침'], ['pivot', '따라가기']];
+const pvN = ch => S.pivot ? ch.list.filter(pivotHit).length : 0;
 const refHit = ch => R.RF.length && refStrong(ch).some(n => n);
 function isFull(ch) { return ch.lvs.size === AS.length; }
 // 체인 목록 기간: 전체 / 월 / 주 / 일 — 출발 세션 로그인 시각 기준, ◀ ▶ 는 체인이 있는 기간으로 건너뜀
@@ -989,6 +1017,7 @@ function filteredChains() {
     if (S.cf === 'full' && !isFull(ch)) return false;
     if (S.cf === 'pattern' && !ch.pattern) return false;
     if (S.cf === 'ref' && !refHit(ch)) return false;
+    if (S.cf === 'pivot' && !pvN(ch)) return false;
     if (!q) return true;
     if (fDT(ch.t0).includes(q)) return true;
     return ch.list.some(x => (x.user + ' ' + x.host + ' ' + x.tty).toLowerCase().includes(q));
@@ -1037,8 +1066,8 @@ function renderChains() {
   if (S.cf === 'ref' && !R.RF.length) S.cf = 'all';
   renderPeriodNav();
   const base = R.chains.filter(inPeriod);   // 필터 숫자는 지금 기간 기준
-  const cnt = { all: base.length, full: base.filter(isFull).length, pattern: base.filter(c => c.pattern).length, ref: R.RF.length ? base.filter(refHit).length : 0 };
-  seg.innerHTML = CF.filter(([k]) => k !== 'ref' || R.RF.length).map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
+  const cnt = { all: base.length, full: base.filter(isFull).length, pattern: base.filter(c => c.pattern).length, ref: R.RF.length ? base.filter(refHit).length : 0, pivot: S.pivot ? base.filter(pvN).length : 0 };
+  seg.innerHTML = CF.filter(([k]) => (k !== 'ref' || R.RF.length) && (k !== 'pivot' || S.pivot)).map(([k, t]) => `<button data-k="${k}" class="${S.cf === k ? 'on' : ''}">${t}<span class="n">${cnt[k]}</span></button>`).join('');
   seg.querySelectorAll('button').forEach(b => b.onclick = () => { S.cf = b.dataset.k; renderChains(); });
   const list = filteredChains();
   S.shown = list.slice(0, CAP_CHAINS);
@@ -1055,7 +1084,8 @@ function renderChains() {
       : ch.found ? `<span class="bd warn" title="회수(재접속)가 확인된 서버 연결 ${ch.found}/${ch.needed}${ch.ordered ? '' : ' · 순서 다름'}">회수 ${ch.found}/${ch.needed}</span>` : '';
     const lp = ch.longP && ch.longP.length ? ch.longP.reduce((a, b) => (b.e == null ? Infinity : b.e - b.s) > (a.e == null ? Infinity : a.e - a.s) ? b : a) : null;
     const lpB = lp ? `<span class="bd warn" title="${esc(AS[lp.lv].name)} ${fDT(lp.s)} 세션이 ${lp.e == null ? '로그아웃 기록 없이 열려 있음' : fDur(lp.e - lp.s) + ' 동안 이어짐'} — 자식은 시작 후 ${S.maxPar}시간 안의 로그인만 붙였습니다">${lp.e == null ? '로그아웃 없음' : '장기 ' + longTxt(lp.e - lp.s)}</span>` : '';
-    const ip = lpB + (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
+    const pn = pvN(ch);
+    const ip = lpB + (pn ? `<span class="bd warn" title="따라가는 ${esc(S.pivot.v)} 가 들어간 세션 ${pn}개">◎${pn}</span>` : '') + (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
       + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인 마지막 서버 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
     const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
     return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
@@ -1253,7 +1283,7 @@ function detailInto(ch, k) {
       <thead><tr><th></th><th>#</th><th>시각</th><th>출발 후</th><th>간격</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead>
       <tbody>${ev.slice(0, CAP_EVENTS).map((e, i) => {
         const x = e.x, prev = i && ev[i - 1].t != null && e.t != null ? e.t - ev[i - 1].t : null;
-        return `<tr class="${e.kind ? 'out' : ''}"${x.role === 'ref' && !x.strong ? ' style="opacity:.55"' : ''} data-sid="${x.id}"${e.kind ? '' : ` id="ev-${x.id}"`}>
+        return `<tr class="${e.kind ? 'out' : ''}${pivotHit(x) ? ' pvrow' : ''}"${x.role === 'ref' && !x.strong ? ' style="opacity:.55"' : ''} data-sid="${x.id}"${e.kind ? '' : ` id="ev-${x.id}"`}>
           <td class="rc"><div style="background:${ROLE[x.role].c};opacity:${e.kind ? .35 : 1}"></div></td>
           <td class="dim">${i + 1}</td>
           <td class="tm">${e.t == null ? '-' : fDT(e.t, x.sec)}</td>
@@ -1261,7 +1291,7 @@ function detailInto(ch, k) {
           <td class="tm dim">${prev == null ? '' : fDur(prev, x.sec)}</td>
           <td><span class="sv">${srvName(x)}</span></td>
           <td class="act">${e.txt}</td>
-          <td class="mono">${esc(x.user)} · ${esc(x.tty || '-')} · ${esc(x.host || '-')}${ipBadge(x)}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
+          <td class="mono">${pvA('user', x.user)} · ${esc(x.tty || '-')} · ${pvA('ip', x.host)}${ipBadge(x)}${x.cands.length > 1 ? ` <span class="bd warn" title="시간상 들어갈 수 있는 앞 서버 세션이 ${candN(x)}개 — 가장 촘촘한 것을 골랐습니다">후보 ${candN(x)}</span>` : ''}</td>
           <td><div class="raw" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">${esc(x.raw.replace(/\s+/g, ' '))}</div></td></tr>`;
       }).join('')}${ev.length > CAP_EVENTS ? `<tr><td colspan="9" class="empty">${ev.length}행 중 ${CAP_EVENTS}행만 표시 — 전체는 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
   // unit: 'day'·'month' 로 고른 기간이면 ◀ ▶ 가 달력 단위로 넘어감 (생명주기 밖은 잘라냄)
@@ -1497,7 +1527,7 @@ function drawGantt(ch, boxId = 'gantt') {
     const what = ref ? `${x.srv} 비교 서버 로그인 — ${x.strong ? '체인 마지막 서버 세션 안' : '체인 시간대와 겹침'}` : `${AS[x.lv].name} ${ROLE[x.role].t}`;
     const tip = `${what}${isPty(x) ? '' : ' · pty 아님(sftp/scp 등 가능)'}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}${x.e == null ? '' : ' (' + fDur(x.e - x.s, x.sec) + ')'}\n${x.user} ${x.tty} ${x.host}`;
     const op = ref ? (x.strong ? .9 : .28) : x.role === 'other' ? .55 : .9;
-    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${op}"${x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
+    g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${op}"${pivotHit(x) ? ' stroke="var(--warn)" stroke-width="2.5"' : x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
     if (!isPty(x)) g += `<rect x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="url(#hatch)" pointer-events="none"/>`;
     const label = `${fT(x.s)} ${x.tty || ''}`.trim(), inFill = ref && !x.strong ? 'var(--text)' : '#fff';
     const ty = y + BH / 2 + (dense ? 3 : 4), fs = `font-size:${FS}px;`;
@@ -1831,11 +1861,11 @@ function dbgPanel(side, lk) {
       ipb = typeof v === 'string' ? ` <span class="bd ok" title="출발지가 ${esc(S.slots[D.l].name)} 의 ${esc(v)} 주소와 같음">IP✓</span>`
         : v === false ? ` <span class="bd bad" title="출발지가 ${esc(S.slots[D.l].name)} 주소(${esc(L.addrs.map(a => a.ip).join(', '))})와 다름 — 직접 로그인 등">IP✕</span>` : '';
     }
-    rows += `<tr class="rw${cls}" data-i="${i}" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">
+    rows += `<tr class="rw${cls}${pivotHit(x) ? ' pvrow' : ''}" data-i="${i}" title="${esc(x.src + ':' + x.line + '  ' + x.raw)}">
       <td class="tm">${fT(x.s, x.sec)}</td>
       <td class="tm">${x.e == null ? `<span class="dim">${x.endKind === 'gone' ? 'gone' : 'still'}</span>` : (fD(x.e) === day ? '' : fD(x.e).slice(5) + ' ') + fT(x.e, x.sec)}</td>
       <td class="tm dim">${x.e == null ? '' : fDur(x.e - x.s, x.sec)}</td>
-      <td>${esc(x.user)}</td><td class="mono">${esc(x.tty)}</td><td class="mono">${esc(x.host)}${ipb}</td>
+      <td>${pvA('user', x.user)}</td><td class="mono">${esc(x.tty)}</td><td class="mono">${pvA('ip', x.host)}${ipb}</td>
       <td>${dayBar(x)}</td>${extra}
       <td>${ch ? `<a data-ch="${ch.root.id}" title="이 세션이 들어간 체인 #${ch.no} 보기">#${ch.no}</a>` : ''}</td></tr>`;
   }
@@ -1999,6 +2029,15 @@ function sampleData() {
     const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) draw(ch);
   }, 150); });
   loadKeeps();
+  $('#pvIn').onchange = e => {
+    const v = e.target.value.trim();
+    setPivot(/^[0-9a-f.:]+$/i.test(v) && /[.:]/.test(v) ? 'ip' : 'user', v || null);
+  };
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('.pv'); if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    setPivot(a.dataset.pk, a.dataset.pv);
+  }, true);
   try { S.gdense = !!localStorage.getItem('hopviewer.gdense'); S.ttoff = !!localStorage.getItem('hopviewer.ttoff'); } catch (e) {}
   $('#detail').classList.toggle('ttoff', S.ttoff);
   $('#wsFullBtn').onclick = () => setWsFull(true);
