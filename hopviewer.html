@@ -243,6 +243,8 @@ tr.selrow td{background:var(--accent-bg)}
     <input type="text" id="pvIn" placeholder="IP·계정 따라가기" title="IP 나 계정을 넣고 Enter — 모든 서버에서 그 값의 로그인을 강조. 순서표·4번 화면의 IP·계정을 눌러도 됩니다" style="width:150px">
     <span class="pvbar" id="pvBar" hidden></span>
     <label class="ctl" title="서버 IP 칸을 채운 경우, 다음 서버 last 의 출발지(FROM)가 그 IP 인 세션만 연결"><input type="checkbox" id="strict"> 출발지 IP 일치만</label>
+    <button class="btn" id="wSave" title="넣은 로그 원본·서버 구성·설정·킵을 JSON 파일 하나로 저장 (로그 원본이 그대로 들어가니 다룰 때 주의)">작업 저장</button>
+    <button class="btn" id="wOpen" title="저장한 작업 파일(JSON)을 열어 그 상태로 이어서 분석">작업 열기</button><input type="file" id="wFile" accept=".json,application/json" hidden>
     <button class="btn" id="sample">예시 데이터</button>
     <button class="btn" id="theme">테마</button>
   </div>
@@ -293,6 +295,7 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>작업 저장·열기</b>: 위쪽 <b>작업 저장</b>은 넣은 로그 원본(텍스트·wtmp)·서버 구성·IP·설정·킵·고른 체인을 JSON 파일 하나로 내려받고, <b>작업 열기</b>(또는 그 파일을 서버 칸에 끌어다 놓기)로 그대로 이어서 분석합니다. 로그 원본이 들어 있으니 파일을 다룰 때 주의하세요.<br>
     · <b>IP·계정 따라가기</b>: 순서표나 4번 화면의 IP·계정(점선 밑줄)을 누르거나 위쪽 칸에 넣으면, 모든 서버에서 그 값의 로그인을 강조합니다(그래프 노란 테두리, 행 노란 바탕, 지도 칸 테두리). 위쪽 막대에 서버별 건수가 나오고, 체인 목록의 <b>따라가기</b> 필터로 그 값이 들어간 체인만 볼 수 있습니다.<br>
     · <b>시간대 대조 지도</b>(3번): 켜진 모든 서버의 로그인을 일·시간·10분 칸에 겹쳐 보여 주고, 서로 다른 서버 여러 대가 <b>동시 범위</b>(기본 15분) 안에 함께 로그인한 묶음을 점수 순으로 뽑습니다. 점수는 서버 수, 체인 순서(앞 서버 첫 로그인 뒤에 들어갔나), 출발 IP, 비교 서버 포함, 그 서버에서 처음 보는 출발지, 새벽 시간대로 매기며, 각 후보에서 바로 2번 체인(그 시간대로 확대)이나 4번 비교로 갈 수 있습니다. 회색 빗금 칸은 그 서버 로그가 없는 때입니다.<br>
     · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
@@ -947,7 +950,12 @@ function renderInfo() {
   });
 }
 async function addFiles(sl, files) {
-  for (const f of files) sl.files.push(await readFile(f));
+  for (const f of files) {
+    const r = await readFile(f);
+    // 작업 파일(JSON)을 서버 칸에 끌어다 놓은 경우 → 작업 열기
+    if (r.text && /^\s*\{/.test(r.text) && r.text.includes('"hopviewer"') && r.text.includes('"workspace"')) { loadWorkspace(r.text, f.name); return; }
+    sl.files.push(r);
+  }
   rebuildSlot(sl); renderSlots(); run();
 }
 let timer = null;
@@ -1934,6 +1942,58 @@ function renderAll() {
   const cl = $('#dclr'); if (cl) cl.onclick = () => { D.side = null; D.idx = -1; renderAll(); };
 }
 
+/* ───────── 작업 저장 / 열기 ─────────
+   로그 원본(텍스트·wtmp 바이너리), 서버 구성, 설정, 킵, 고른 체인·따라가기를 JSON 하나로 */
+const toB64 = buf => { const u = new Uint8Array(buf); let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
+const fromB64 = t => { const b = atob(t), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; };
+function saveWorkspace() {
+  const sel = S.view === 'chains' && R ? R.chains.find(c => c.root.id === S.sel) : null;
+  const data = {
+    app: 'hopviewer', type: 'workspace', v: 1, savedAt: new Date().toISOString(),
+    settings: { tol: S.tol, tz: $('#tz').value, strict: S.strict, maxPar: S.maxPar, refRows: S.refRows, gdense: S.gdense, ttoff: S.ttoff,
+      hm: { unit: S.hm.unit, w: S.hm.w, min: S.hm.min, noLocal: S.hm.noLocal }, pu: S.pu, ps: S.ps, cf: S.cf, pivot: S.pivot },
+    slots: S.slots.map(sl => ({ uid: sl.uid, name: sl.name, from: sl.from, ref: !!sl.ref, off: !!sl.off, origin: sl.origin, ip: sl.ip, inDst: sl.inDst, inSrc: sl.inSrc,
+      year: sl.year, corr: sl.corr, paste: sl.paste,
+      files: sl.files.map(f => f.err ? { name: f.name, err: f.err } : f.bin ? { name: f.name, b64: toB64(f.bin), mtime: f.mtime || null } : { name: f.name, text: f.text, mtime: f.mtime || null }) })),
+    keeps: KEEPS.map(({ _ch, _ctx, ...rest }) => rest),
+    sel: sel ? chainKey(sel) : null,
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const d = new Date(); a.download = `hopviewer_work_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function loadWorkspace(text, fname) {
+  let v;
+  try { v = JSON.parse(text); } catch (e) { alert(`${fname}: JSON 을 읽지 못했습니다`); return; }
+  if (!v || v.app !== 'hopviewer' || v.type !== 'workspace' || !Array.isArray(v.slots)) { alert(`${fname}: hopviewer 작업 파일이 아닙니다`); return; }
+  const busy = S.slots.some(sl => sl.files.length || sl.paste.trim());
+  if (busy && !confirm(`지금 작업을 ${fname} 내용으로 바꿉니다. (킵은 합쳐집니다)`)) return;
+  const st = v.settings || {};
+  S.tol = st.tol ?? 60; S.strict = !!st.strict; S.maxPar = st.maxPar ?? 24; S.refRows = st.refRows ?? true;
+  S.gdense = !!st.gdense; S.ttoff = !!st.ttoff; S.pu = st.pu || 'all'; S.ps = st.ps || 0; S.cf = st.cf || 'all'; S.pivot = st.pivot || null;
+  Object.assign(S.hm, st.hm || {}, { base: 0, sel: null, more: false, pivotOnly: false });
+  S.tz = parseTz(st.tz || '+09:00');
+  $('#tol').value = S.tol; $('#maxPar').value = S.maxPar; $('#tz').value = st.tz || '+09:00'; $('#strict').checked = S.strict; $('#pvIn').value = S.pivot ? S.pivot.v : '';
+  $('#detail').classList.toggle('ttoff', S.ttoff);
+  S.slots = v.slots.map(o => Object.assign(newSlot(o.name), {
+    uid: o.uid, from: o.from ?? 'auto', ref: !!o.ref, off: !!o.off, origin: o.origin || '', ip: o.ip || '', inDst: o.inDst || '', inSrc: o.inSrc || '',
+    year: o.year || '', corr: o.corr || 0, paste: o.paste || '',
+    files: (o.files || []).map(f => f.err ? { name: f.name, err: f.err } : f.b64 ? { name: f.name, bin: fromB64(f.b64), mtime: f.mtime } : { name: f.name, text: f.text || '', mtime: f.mtime }) }));
+  SLOT_UID = Math.max(SLOT_UID, ...S.slots.map(sl => sl.uid || 0));
+  S.slots.forEach(rebuildSlot);
+  let added = 0;
+  for (const k of v.keeps || []) if (k && k.key && !KEEPS.some(x => x.key === k.key)) { KEEPS.push(k); added++; }
+  KEEPS.sort((a, b) => b.savedAt - a.savedAt); saveKeeps();
+  S.view = 'chains'; S.win = null; S.sel = null; S.fold = true;
+  renderSlots(); run();
+  if (v.sel) { const ch = R.chains.find(c => chainKey(c) === v.sel); if (ch) { S.pu = 'all'; S.cf = 'all'; renderChains(); select(ch.root.id); } }
+  renderPivotBar();
+  const n = S.slots.reduce((a, sl) => a + sl.sessions.length, 0);
+  $('#wOpen').textContent = `열림: ${S.slots.length}개 서버 · 세션 ${n}${added ? ` · 킵 +${added}` : ''}`;
+  setTimeout(() => { $('#wOpen').textContent = '작업 열기'; }, 4000);
+}
+
 /* ───────── 예시 데이터 ───────── */
 function sampleData() {
   const Y = 2026, T = (d, h, m, s = 0) => Date.UTC(Y, 9, d, h, m, s);
@@ -2029,6 +2089,9 @@ function sampleData() {
     const ch = R && R.chains.find(c => c.root.id === S.sel); if (ch) draw(ch);
   }, 150); });
   loadKeeps();
+  $('#wSave').onclick = saveWorkspace;
+  $('#wOpen').onclick = () => $('#wFile').click();
+  $('#wFile').onchange = async e => { const f = e.target.files[0]; if (f) loadWorkspace(await f.text(), f.name); e.target.value = ''; };
   $('#pvIn').onchange = e => {
     const v = e.target.value.trim();
     setPivot(/^[0-9a-f.:]+$/i.test(v) && /[.:]/.test(v) ? 'ip' : 'user', v || null);
