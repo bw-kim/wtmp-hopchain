@@ -243,6 +243,7 @@ tr.selrow td{background:var(--accent-bg)}
     <input type="text" id="pvIn" placeholder="IP·계정 따라가기" title="IP 나 계정을 넣고 Enter — 모든 서버에서 그 값의 로그인을 강조. 순서표·4번 화면의 IP·계정을 눌러도 됩니다" style="width:150px">
     <span class="pvbar" id="pvBar" hidden></span>
     <label class="ctl" title="서버 IP 칸을 채운 경우, 다음 서버 last 의 출발지(FROM)가 그 IP 인 세션만 연결"><input type="checkbox" id="strict"> 출발지 IP 일치만</label>
+    <button class="btn" id="rptBtn" title="분석 조건·서버 표·의심 시간대 순위·킵한 체인(그래프·순서표)을 HTML 보고서 한 장으로 저장 (킵이 없으면 지금 고른 체인)">보고서</button>
     <button class="btn" id="wSave" title="넣은 로그 원본·서버 구성·설정·킵을 JSON 파일 하나로 저장 (로그 원본이 그대로 들어가니 다룰 때 주의)">작업 저장</button>
     <button class="btn" id="wOpen" title="저장한 작업 파일(JSON)을 열어 그 상태로 이어서 분석">작업 열기</button><input type="file" id="wFile" accept=".json,application/json" hidden>
     <button class="btn" id="sample">예시 데이터</button>
@@ -295,13 +296,14 @@ tr.selrow td{background:var(--accent-bg)}
     · last 기본 출력은 시각이 분 단위로 잘려 있고 지속시간도 분 단위라 로그인/로그아웃이 최대 1~2분 어긋날 수 있습니다. 허용 오차로 조절하고, 가능하면 <code>last -F -i</code>(초·연도 포함)나 wtmp 원본을 쓰세요.<br>
     · sftp/scp 는 pty 를 쓰지 않아 OS·sshd 설정에 따라 <b>wtmp 에 아예 안 남거나</b>, tty 가 <code>pts/N</code> 이 아닌 값(notty 등)으로 남습니다. 회수 세션이 안 보이면 auth.log/secure 의 <code>subsystem request for sftp</code> 를 같이 보세요.<br>
     · <b>IP 입력</b>: 다음 서버의 last 에는 <b>그 서버가 본 앞 서버의 출발지 IP</b> 만 남습니다. 예를 들어 A 가 NAT 주소(공인 IP)로 B 에 접속하면 B 의 last 에는 A 의 실제 IP 대신 SNAT 된 주소가 찍히고, B 에서 C 로 갈 때는 C 의 last 에 B 의 실제 IP 가 찍힐 수 있습니다. 그래서 각 칸에 <b>이 서버 실제 IP</b>, 그리고 B 칸부터 <b>앞 서버가 접속한 이 서버 주소(NAT, 참고용)</b> 와 <b>이 서버 last 에 찍히는 앞 서버 IP(비교용)</b> 를 따로 적습니다. 비교는 세 값 중 하나라도 맞으면 일치로 보고, 어느 값과 맞았는지(지정·실IP·NAT)를 배지로 보여줍니다. A 에서 B 로 접속한 주소(NAT)는 wtmp 어디에도 남지 않으므로 순서표에 참고로만 표시합니다.<br>
+    · <b>보고서</b>: 위쪽 <b>보고서</b>는 분석 조건, 서버 표(로그 기간·경고), 의심 시간대 상위 20, 킵한 체인 전부(메모·당시 조건·판정·그래프·순서표와 원문)를 밝은 배경의 HTML 한 장으로 저장합니다. 킵이 없으면 지금 고른 체인을 넣습니다. 브라우저에서 PDF 로 인쇄할 수 있습니다.<br>
     · <b>작업 저장·열기</b>: 위쪽 <b>작업 저장</b>은 넣은 로그 원본(텍스트·wtmp)·서버 구성·IP·설정·킵·고른 체인을 JSON 파일 하나로 내려받고, <b>작업 열기</b>(또는 그 파일을 서버 칸에 끌어다 놓기)로 그대로 이어서 분석합니다. 로그 원본이 들어 있으니 파일을 다룰 때 주의하세요.<br>
     · <b>IP·계정 따라가기</b>: 순서표나 4번 화면의 IP·계정(점선 밑줄)을 누르거나 위쪽 칸에 넣으면, 모든 서버에서 그 값의 로그인을 강조합니다(그래프 노란 테두리, 행 노란 바탕, 지도 칸 테두리). 위쪽 막대에 서버별 건수가 나오고, 체인 목록의 <b>따라가기</b> 필터로 그 값이 들어간 체인만 볼 수 있습니다.<br>
     · <b>시간대 대조 지도</b>(3번): 켜진 모든 서버의 로그인을 일·시간·10분 칸에 겹쳐 보여 주고, 서로 다른 서버 여러 대가 <b>동시 범위</b>(기본 15분) 안에 함께 로그인한 묶음을 점수 순으로 뽑습니다. 점수는 서버 수, 체인 순서(앞 서버 첫 로그인 뒤에 들어갔나), 출발 IP, 비교 서버 포함, 그 서버에서 처음 보는 출발지, 새벽 시간대로 매기며, 각 후보에서 바로 2번 체인(그 시간대로 확대)이나 4번 비교로 갈 수 있습니다. 회색 빗금 칸은 그 서버 로그가 없는 때입니다.<br>
     · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
     · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 세로줄이 빽빽한 빗 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
     · <b>킵</b>: 체인 목록의 ☆ 나 상세 화면의 <b>☆ 킵</b> 을 누르면 그 순간의 체인·비교 라인·순서표와 설정을 그대로 보관합니다. 왼쪽 위 <b>★ 킵</b> 탭에서 나중에 설정을 바꾼 뒤에도 그때 모습 그대로 다시 볼 수 있고, 메모를 달거나 JSON 으로 내보내기·가져오기 할 수 있습니다.<br>
-    · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 체인 마지막 서버 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
+    · <b>비교 서버</b>: 서버 칸의 ON 버튼을 한 번 더 누르면 <b>비교</b> 상태가 됩니다. 경유지를 몰라 체인으로 잇기 어려운 종착 서버(D)를 이렇게 두면, 고른 체인 시간대의 D 로그인을 그래프·순서표에 같이 띄웁니다. 그 서버의 앞 서버(예: D 의 앞 서버 C, 체인에 없으면 체인 마지막 서버) 세션 안에 들어간 로그인은 진하게, 시간대만 겹친 것은 흐리게 표시하고, 체인 목록의 <b>비교 겹침</b> 필터로 D 로그인이 있는 체인만 추릴 수 있습니다.<br>
     · <b>출발 IP</b>: 출발 서버(A) 칸이나 작업 화면 왼쪽 위에 A 에 접속한 공격자 IP 를 넣으면, 그 IP 에서 들어온 A 로그인만 남기고 거기서부터 B·C·D 로 이어 갑니다. 다른 사람이 A 에서 B 로 간 접속은 체인에 붙지 않습니다.<br>
     · <b>갈라지는 경로</b>: 서버 칸의 <b>앞 서버</b>를 고르면 A→B→C→D 와 C→C' 처럼 한 서버에서 여러 서버로 갈라지는 구조도 분석합니다. 기본값 "자동" 은 바로 왼쪽 칸입니다.<br>
     · 서버마다 시계가 다르면 각 칸의 <b>시간 보정(초)</b>에 더할 값을 넣으세요(예: B 시계가 90초 빠르면 -90). 연도 없는 last 출력은 <code>wtmp begins</code> 줄 → 요일 순으로 연도를 추정하며, 연도 칸에 직접 적을 수도 있습니다.<br>
@@ -324,7 +326,7 @@ const ROLE = {
   target: { c: 'var(--r-target)', t: '최종 서버' },
   fetch: { c: 'var(--r-fetch)', t: '복귀 후 재접속(sftp 추정)' },
   other: { c: 'var(--r-other)', t: '기타 접속' },
-  ref: { c: 'var(--r-ref)', t: '비교 서버 로그인 (진하게 = 체인 마지막 서버 세션 안)' },
+  ref: { c: 'var(--r-ref)', t: '비교 서버 로그인 (진하게 = 그 서버의 앞 서버 세션 안)' },
 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -831,7 +833,7 @@ function events(ch) {
     }
   }
   if (S.refRows && R.RF.length) for (const ln of refLanes(ch)) for (const x of ln.list) {
-    const tag = `<span class="bd rf">비교</span> `, where = x.strong ? '체인 마지막 서버 세션 안 (경유지 모름)' : '<span class="hint">체인 시간대와 겹침</span>';
+    const tag = `<span class="bd rf">비교</span> `, where = x.strong ? '앞 서버 세션 안 (경유지 모름)' : '<span class="hint">체인 시간대와 겹침</span>';
     ev.push({ t: x.s, kind: 0, x, txt: `${tag}<b>${esc(x.srv)}</b> 로그인 — ${where}` });
     if (x.e != null) ev.push({ t: x.e, kind: 1, x, txt: `${tag}<b>${esc(x.srv)}</b> 로그아웃 <span class="hint">(${fDur(x.e - x.s, x.sec)})</span>` });
   }
@@ -1094,7 +1096,7 @@ function renderChains() {
     const lpB = lp ? `<span class="bd warn" title="${esc(AS[lp.lv].name)} ${fDT(lp.s)} 세션이 ${lp.e == null ? '로그아웃 기록 없이 열려 있음' : fDur(lp.e - lp.s) + ' 동안 이어짐'} — 자식은 시작 후 ${S.maxPar}시간 안의 로그인만 붙였습니다">${lp.e == null ? '로그아웃 없음' : '장기 ' + longTxt(lp.e - lp.s)}</span>` : '';
     const pn = pvN(ch);
     const ip = lpB + (pn ? `<span class="bd warn" title="따라가는 ${esc(S.pivot.v)} 가 들어간 세션 ${pn}개">◎${pn}</span>` : '') + (ch.ipBad ? `<span class="bd bad" title="출발지 IP 불일치 ${ch.ipBad}건">IP✕${ch.ipBad}</span>` : '')
-      + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인 마지막 서버 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
+      + (R.RF.length ? refStrong(ch).map((n, i) => n ? `<span class="bd rf" title="${esc(R.RF[i].sl.name)} 로그인 중 이 체인의 앞 서버(체인에 없으면 마지막 서버) 세션 안에 들어간 것 ${n}건">${esc(R.RF[i].sl.name)} ${n}</span>` : '').join('') : '');
     const end = ch.open ? '접속 중' : (fD(ch.t1) === fD(ch.t0) ? '' : fD(ch.t1).slice(5) + ' ') + fT(ch.t1);
     return `<div class="ci${r.id === S.sel ? ' on' : ''}" data-id="${r.id}" title="${fDT(ch.t0)} · ${esc(r.user)}@${nm(r.lv)}${r.host ? ' ← ' + esc(r.host) : ''}">
       <div class="l1"><span class="kp${keepOf(ch) ? ' on' : ''}" data-kp="1" title="${keepOf(ch) ? '킵 해제' : '킵 — 지금 이 그래프·순서표를 보관'}">${keepOf(ch) ? '★' : '☆'}</span><span class="no">#${ch.no}</span><span>${fD(ch.t0).slice(5)} ${fT(ch.t0)} ~ ${end}</span><span class="bds">${pat}${ip}</span></div>
@@ -1394,16 +1396,23 @@ function steps(ch) {
 }
 /* ───────── 비교 서버 (체인 밖, 경유지를 모르는 종착 서버 등) ─────────
    짝을 맞추지 않고, 고른 체인 시간대의 로그인만 그래프·순서표에 같이 띄운다.
-   "체인 안" = 체인의 마지막 서버(아래에 다른 서버가 없는 서버) 세션 안에 완전히 들어간 로그인 */
+   "체인 안" = 비교 서버의 앞 서버가 체인에 있으면 그 서버, 없으면 체인 마지막 서버 세션 안에 완전히 들어간 로그인 */
 function chainLeaves(ch) {
   const leaf = new Set([...ch.lvs].filter(lv => ![...ch.lvs].some(o => R.PL[o] === lv)));
   return ch.list.filter(x => leaf.has(x.lv));
 }
+// 비교 서버가 "안에 들어가는지" 볼 체인 세션: 그 서버의 앞 서버가 체인에 있으면 그 서버 세션 (C→D, C→C' 처럼 갈라질 때 C),
+// 없으면 체인 마지막 서버 세션
+function refBase(ch, sl) {
+  const p = activeParent(sl), pos = p ? AS.indexOf(p) : -1;
+  return pos >= 0 && ch.lvs.has(pos) ? ch.list.filter(x => x.lv === pos) : chainLeaves(ch);
+}
 // 체인 목록용: 비교 서버별 "체인 안" 로그인 수 (시작시각 이분 탐색으로 범위만 확인)
 function refStrong(ch) {
   if (ch._rs) return ch._rs;
-  const tol = S.tol * 1000, leaves = chainLeaves(ch), hi = (ch.open ? Infinity : ch.t1) + tol;
-  ch._rs = R.RF.map(({ ss, starts }) => {
+  const tol = S.tol * 1000, hi = (ch.open ? Infinity : ch.t1) + tol;
+  ch._rs = R.RF.map(({ sl, ss, starts }) => {
+    const leaves = refBase(ch, sl);
     let n = 0;
     for (let j = upperBound(starts, ch.t0 - tol - 60000 - 1); j < ss.length && ss[j].s <= hi; j++)
       if (leaves.some(p => inside(p, ss[j]))) n++;
@@ -1414,9 +1423,9 @@ function refStrong(ch) {
 // 그래프·순서표용: 체인 시간대와 겹치는 비교 서버 세션 전부 (고른 체인 하나만 계산)
 function refLanes(ch) {
   if (ch._rl) return ch._rl;
-  const leaves = chainLeaves(ch), tEnd = ch.open ? Infinity : ch.t1;
+  const tEnd = ch.open ? Infinity : ch.t1;
   ch._rl = R.RF.map(({ sl, ss, starts }, i) => {
-    const list = [];
+    const leaves = refBase(ch, sl), list = [];
     for (let j = 0, n = upperBound(starts, tEnd); j < n; j++) {
       const x = ss[j];
       if ((x.e == null ? Infinity : x.e) < ch.t0) continue;
@@ -1532,7 +1541,7 @@ function drawGantt(ch, boxId = 'gantt') {
   }
   for (const ln of lanes) for (const x of ln.list) {
     const x1 = x._x1, x2 = x._x2, w = x2 - x1, y = barY(x), c = ROLE[x.role].c, ref = x.role === 'ref';
-    const what = ref ? `${x.srv} 비교 서버 로그인 — ${x.strong ? '체인 마지막 서버 세션 안' : '체인 시간대와 겹침'}` : `${AS[x.lv].name} ${ROLE[x.role].t}`;
+    const what = ref ? `${x.srv} 비교 서버 로그인 — ${x.strong ? '앞 서버 세션 안' : '체인 시간대와 겹침'}` : `${AS[x.lv].name} ${ROLE[x.role].t}`;
     const tip = `${what}${isPty(x) ? '' : ' · pty 아님(sftp/scp 등 가능)'}\n${fDT(x.s, x.sec)} ~ ${x.e == null ? x.endKind : fDT(x.e, x.sec)}${x.e == null ? '' : ' (' + fDur(x.e - x.s, x.sec) + ')'}\n${x.user} ${x.tty} ${x.host}`;
     const op = ref ? (x.strong ? .9 : .28) : x.role === 'other' ? .55 : .9;
     g += `<g><title>${esc(tip)}</title><rect data-sid="${x.id}" x="${x1}" y="${y}" width="${w}" height="${BH}" rx="3" fill="${c}" fill-opacity="${op}"${pivotHit(x) ? ' stroke="var(--warn)" stroke-width="2.5"' : x.e == null ? ' stroke-dasharray="4 3" stroke="' + c + '"' : ''}/>`;
@@ -1942,6 +1951,107 @@ function renderAll() {
   const cl = $('#dclr'); if (cl) cl.onclick = () => { D.side = null; D.idx = -1; renderAll(); };
 }
 
+/* ───────── 보고서 (HTML 한 장) ─────────
+   분석 조건 · 서버 표 · 의심 시간대 순위 · 킵한 체인(그래프 + 순서표)을 밝은 배경의 HTML 파일로 내려받는다 */
+const RPT_ROWS = 500;          // 체인 하나당 순서표 최대 행
+function reportCss() {
+  // 화면 CSS 의 밝은 테마 색을 그대로 가져와 보고서 기본 색으로
+  const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
+  const base = /:root\{([^}]*)\}/.exec(css), m = /:root\[data-theme=light\]\{([^}]*)\}/.exec(css);
+  return `:root{${base ? base[1] : ''}} :root{${m ? m[1] : ''}}
+*{box-sizing:border-box} body{margin:24px auto;max-width:1180px;padding:0 16px;background:#fff;color:var(--text);font:13px/1.55 var(--sans)}
+h1{font-size:20px;margin:0 0 4px} h2{font-size:16px;margin:28px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--line)} h3{font-size:14px;margin:18px 0 6px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0} th{text-align:left;background:var(--panel2);color:var(--muted);font-weight:600}
+th,td{padding:4px 7px;border-bottom:1px solid var(--line2);vertical-align:top} .mono,code{font-family:var(--mono);font-size:11.5px}
+.tm{font-family:var(--mono);white-space:nowrap} .dim{color:var(--faint)} .hint{color:var(--muted);font-size:11.5px} .w{color:var(--warn)}
+.bd{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;margin:1px 2px 1px 0}
+.bd.ok{color:var(--ok);border-color:currentColor} .bd.warn{color:var(--warn);border-color:currentColor} .bd.bad{color:var(--bad);border-color:currentColor}
+.bd.acc{color:var(--accent);border-color:currentColor} .bd.rf{color:var(--r-ref);border-color:currentColor}
+.stp{display:inline-block;font-size:11.5px;padding:0 8px;border-radius:999px;border:1px solid currentColor;margin:2px 3px 2px 0}
+.stp.ok{color:var(--ok)} .stp.no{color:var(--bad)} .stp.mid{color:var(--warn)}
+.meta{color:var(--muted);font-size:12px} .note{background:var(--panel2);border-left:3px solid var(--warn);padding:6px 10px;margin:6px 0;white-space:pre-wrap}
+.g{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:6px;margin:8px 0}
+.g svg{display:block} .g text{font-family:var(--sans);font-size:11px;fill:var(--muted)} .g .ln{font-weight:700;fill:var(--text);font-size:12px}
+.rc{width:4px;padding:0} .rc div{width:4px;min-height:18px}
+.raw{font-family:var(--mono);font-size:10.5px;color:var(--faint);word-break:break-all}
+.chain{margin-top:22px} .legend{font-size:11px;color:var(--muted)} .legend i{display:inline-block;width:11px;height:9px;border-radius:2px;margin:0 4px 0 10px;vertical-align:-1px}
+@media print { body{margin:0;max-width:none} .chain{break-inside:avoid-page} h2{break-after:avoid} .g{overflow:visible} }`;
+}
+function buildReport() {
+  const now = new Date();
+  const slotSt = sl => sl.off ? '끔' : sl.ref ? '비교' : '체인';
+  const og = originSlot();
+  const topo = R && AS.length ? plainText(topoText(AS.map((_, j) => j))) : '-';
+  const refs = S.slots.filter(sl => !sl.off && sl.ref).map(sl => sl.name);
+  let h = `<h1>hopviewer 분석 보고서</h1>
+    <div class="meta">생성 ${esc(now.toLocaleString('ko-KR'))} · 표시 시간대 ${esc($('#tz').value)} (보고서의 모든 시각은 이 시간대 벽시계)</div>
+    <h2>1. 분석 조건</h2><table><tbody>
+      <tr><th style="width:170px">서버 구성</th><td>${esc(topo)}${refs.length ? ` · 비교: ${esc(refs.join(', '))}` : ''}</td></tr>
+      <tr><th>판정 기준</th><td>다음 서버 세션의 [로그인 ~ 로그아웃] 이 앞 서버 세션 안에 들어가면 연결 (계정명은 보지 않음) · 허용 오차 ${S.tol}초 · 긴 세션 상한 ${S.maxPar ? S.maxPar + '시간' : '없음'} · 로컬 로그인(seat·:N·tty) 제외</td></tr>
+      <tr><th>출발 IP</th><td>${og && og.origin ? esc(og.name + ' ← ' + og.origin) : '지정 안 함'}${S.strict ? ' · 출발지 IP 일치만 연결' : ''}</td></tr>
+      ${S.pivot ? `<tr><th>따라가기</th><td>${S.pivot.kind === 'ip' ? 'IP' : '계정'} ${esc(S.pivot.v)} — ${S.slots.filter(sl => !sl.off).map(sl => `${esc(sl.name)} ${sl.sessions.filter(pivotHit).length}`).join(' · ')}</td></tr>` : ''}
+    </tbody></table>`;
+  // 서버 표
+  h += `<h2>2. 서버</h2><table><thead><tr><th>서버</th><th>상태</th><th>앞 서버</th><th>실제 IP</th><th>NAT · 앞 서버 출발지</th><th>로그 기간</th><th>세션</th><th>경고</th></tr></thead><tbody>`
+    + S.slots.map(sl => {
+      const dp = declaredParent(sl), c = sl.cov || [];
+      const cov = c.length ? `${fD(c[0].lo)}${c[0].loKnown ? '' : '<span class="w">(추정)</span>'} ~ ${fD(c[c.length - 1].hi)}${sl.gaps && sl.gaps.length ? ` <span class="w">공백 ${sl.gaps.length}</span>` : ''}` : '-';
+      return `<tr><td><b>${esc(sl.name)}</b></td><td>${slotSt(sl)}</td><td>${dp && !sl.ref ? esc(dp.name) : '-'}</td><td class="mono">${esc(sl.ip || '-')}</td>
+        <td class="mono">${esc([sl.inDst && 'NAT ' + sl.inDst, sl.inSrc && '출발지 ' + sl.inSrc, sl.origin && '출발 IP ' + sl.origin].filter(Boolean).join(' · ') || '-')}</td>
+        <td class="tm">${cov}</td><td>${sl.sessions.length}</td><td>${sl.warns.length ? sl.warns.map(w => `<div class="w">⚠ ${esc(w)}</div>`).join('') : '-'}</td></tr>`;
+    }).join('') + '</tbody></table>';
+  // 의심 시간대
+  if (R) {
+    const H = heatData(), top = H.ranked.slice(0, 20);
+    h += `<h2>3. 의심 시간대 상위 ${top.length}</h2><div class="hint">서로 다른 서버 ${S.hm.min}대 이상이 ${S.hm.w}분 안에 함께 로그인한 묶음 ${H.groups.length}개 중 점수 순.
+      점수 = 서버 수 ×10 · 체인 순서 맞음 ×5 · 출발 IP +10 · 비교 서버 +4 · 그 서버에서 처음 보는 출발지 ×2 · 새벽(0~6시) +3${S.pivot ? ' · 따라가는 값 +8' : ''}</div>`
+      + (top.length ? `<table><thead><tr><th>#</th><th>점수</th><th>시각</th><th>들어간 순서</th><th>근거</th></tr></thead><tbody>${top.map(g => {
+        const w = g.why;
+        return `<tr><td class="dim">${g.rank}</td><td><b>${g.score}</b></td><td class="tm">${fDT(g.t0)}${g.t1 > g.t0 ? ' ~ ' + fT(g.t1) : ''}</td>
+          <td class="mono">${g.order.map(o => `${esc(H.srv[o.si].name)} ${fT(o.t)}`).join(' → ')}</td>
+          <td>${[`서버 ${g.srvN}`, w.hopTot ? `순서 ${w.hops}/${w.hopTot}` : '', w.originHit ? '출발 IP' : '', w.refIn ? '비교 서버' : '', w.newN ? `처음 보는 출발지 ${w.newN}` : '', w.night ? '새벽' : '', w.pv ? `따라가는 값 ${w.pv}` : ''].filter(Boolean).map(t => `<span class="bd">${esc(t)}</span>`).join('')}</td></tr>`;
+      }).join('')}</tbody></table>` : '<div class="hint">조건에 맞는 동시 활동 없음</div>');
+  }
+  // 체인
+  const tmp = document.createElement('div');
+  tmp.id = 'rptG'; tmp.className = 'gwrap'; tmp.style.cssText = 'position:absolute;left:-20000px;top:0;width:1120px;max-height:none';
+  document.body.appendChild(tmp);
+  const legend = `<div class="legend">${Object.values(ROLE).map(v => `<i style="background:${v.c}"></i>${esc(v.t)}`).join('')}<i style="background:repeating-linear-gradient(-45deg,#8b97a6 0 2px,#f0f3f7 2px 5px)"></i>회색 빗금 = 그 서버 로그 없음</div>`;
+  const chainHtml = (ch, k) => {
+    const w = ch._win; ch._win = null;              // 보고서는 체인 전체 기간
+    drawGantt(ch, 'rptG');
+    const svg = tmp.innerHTML; ch._win = w;
+    const ev = events(ch);
+    const verdict = ch.pattern ? '<span class="bd ok">점프 후 역순 회수 패턴 일치</span>' : ch.found ? '<span class="bd warn">부분 일치</span>' : '<span class="bd">점프만 확인</span>';
+    return `<div class="chain"><h3>${k ? '★ ' : ''}#${ch.no} ${chainPath(ch)} ${verdict}</h3>
+      <div class="meta">${fDT(ch.t0, ch.root.sec)} ~ ${ch.open ? '접속 중' : fDT(ch.t1, ch.root.sec)}${ch.open ? '' : ' (' + fDur(ch.t1 - ch.t0) + ')'} · 출발 ${esc(ch.root.user)}@${nm(ch.root.lv)}${ch.root.host ? ' ← ' + esc(ch.root.host) : ''}
+        ${k ? `<br>킵 ${esc(new Date(k.savedAt).toLocaleString('ko-KR'))} · 당시 조건: 허용 오차 ${k.ctx.tol}초${k.ctx.strict ? ' · 출발지 IP 일치만' : ''}${k.ctx.origin ? ' · 출발 IP ' + esc(k.ctx.origin) : ''} · ${esc(k.ctx.topo)}` : ''}</div>
+      ${k && k.note ? `<div class="note">${esc(k.note)}</div>` : ''}
+      <div>${steps(ch).map(x => `<span class="stp ${x.cls}" title="${esc(x.tip)}">${x.ic} ${esc(x.t)}</span>`).join('')}</div>
+      <div class="g">${svg}</div>${legend}
+      <table><thead><tr><th></th><th>#</th><th>시각</th><th>서버</th><th>동작</th><th>계정 / tty / 출발지</th><th>원문</th></tr></thead><tbody>
+      ${ev.slice(0, RPT_ROWS).map((e, i) => `<tr${e.kind ? ' style="color:var(--muted)"' : ''}><td class="rc"><div style="background:${ROLE[e.x.role].c};opacity:${e.kind ? .35 : 1}"></div></td><td class="dim">${i + 1}</td>
+        <td class="tm">${e.t == null ? '-' : fDT(e.t, e.x.sec)}</td><td><b>${srvName(e.x)}</b></td><td>${e.txt}</td>
+        <td class="mono">${esc(e.x.user)} · ${esc(e.x.tty || '-')} · ${esc(e.x.host || '-')}</td><td class="raw">${esc(e.x.src + ':' + e.x.line + '  ' + e.x.raw)}</td></tr>`).join('')}
+      ${ev.length > RPT_ROWS ? `<tr><td colspan="7" class="hint">${ev.length}행 중 ${RPT_ROWS}행만 — 전체는 화면의 CSV 저장</td></tr>` : ''}</tbody></table></div>`;
+  };
+  let chains = '';
+  try {
+    if (KEEPS.length) chains = KEEPS.map(k => withKeep(k, ch => chainHtml(ch, k))).join('');
+    else if (R) { const ch = R.chains.find(c => c.root.id === S.sel); if (ch) chains = chainHtml(ch, null); }
+  } finally { tmp.remove(); }
+  h += `<h2>4. ${KEEPS.length ? `킵한 체인 ${KEEPS.length}개` : '고른 체인'}</h2>` + (chains || '<div class="hint">체인 없음 — 2번에서 체인을 고르거나 킵하세요</div>');
+  h += `<h2>참고</h2><div class="hint">wtmp(last) 의 로그인 시각 겹침으로 추정한 결과입니다. 같은 시간대의 다른 사용자 접속이 섞일 수 있고, sftp 등 pty 없는 접속은 wtmp 에 남지 않을 수 있으며,
+    로그가 없는 기간(회색 빗금)은 '접속 없음' 이 아니라 '알 수 없음' 입니다. 결론은 원본 로그(원문 열)와 auth.log·bash_history 등으로 확인하세요. 이 보고서에는 로그 원문 일부가 들어 있습니다.</div>`;
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>hopviewer 분석 보고서 ${esc(fD(Date.now() + S.tz * 60000))}</title><style>${reportCss()}</style></head><body>${h}</body></html>`;
+}
+function saveReport() {
+  const html = buildReport();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  const d = new Date(); a.download = `hopviewer_report_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.html`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 /* ───────── 작업 저장 / 열기 ─────────
    로그 원본(텍스트·wtmp 바이너리), 서버 구성, 설정, 킵, 고른 체인·따라가기를 JSON 하나로 */
 const toB64 = buf => { const u = new Uint8Array(buf); let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
@@ -2090,6 +2200,7 @@ function sampleData() {
   }, 150); });
   loadKeeps();
   $('#wSave').onclick = saveWorkspace;
+  $('#rptBtn').onclick = saveReport;
   $('#wOpen').onclick = () => $('#wFile').click();
   $('#wFile').onchange = async e => { const f = e.target.files[0]; if (f) loadWorkspace(await f.text(), f.name); e.target.value = ''; };
   $('#pvIn').onchange = e => {
