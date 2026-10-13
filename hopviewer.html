@@ -186,6 +186,10 @@ body.nosc{overflow:hidden}
 tr.pvrow td{background:rgba(233,192,74,.13)}
 .pvbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;padding:3px 10px;border:1px solid var(--warn);border-radius:999px;color:var(--warn)}
 .pvbar .z{color:var(--faint)}
+.edet{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:10px 12px;border-top:1px solid var(--line)}
+.edet>div:first-child{flex:1;min-width:240px}
+.ebar{display:block}
+.ebar text{font-size:9px;fill:var(--muted);font-family:var(--sans)}
 .heatwrap{overflow-x:auto;padding:6px 12px}
 .heatwrap svg{display:block}
 .heatwrap text{font-family:var(--sans)}
@@ -289,6 +293,9 @@ tr.selrow td{background:var(--accent-bg)}
   <h2 class="sect">4. 노드 로그 보기 · 비교 <small>한 노드의 last 로그를 날짜별로 보기 + 왼쪽(앞 노드) 세션을 누르면 오른쪽(다음 노드)에서 그 세션 시간 안에 완전히 들어간 로그인만 진하게 — A 로 들어와 B 로 점프한 세션 찾기용, 체인 판정과 별개로 원본 세션 그대로</small></h2>
   <div class="panel" id="all"></div>
 
+  <h2 class="sect">5. SSH 연결 성격 <small>연결(A→B, B→C …)마다 앞 서버 세션 없이도 접속이 일어났는지, 새벽·주말에도 있는지, 같은 간격으로 반복되는지를 보고 서버 간 연동(자동)용인지 사람 릴레이에만 쓰였는지 판정합니다 — 행을 누르면 시간대·요일 분포</small></h2>
+  <div class="panel" id="edge"></div>
+
   <div class="panel help" style="margin-top:26px">
     <b>판정 방법</b><br>
     · A 에서 B 로 접속한 세션은 B 의 last 에 남고, 그 세션이 살아 있는 동안 B→C, C→D 접속이 일어납니다. 그래서 <b>다음 서버 세션의 [로그인~로그아웃]이 앞 서버 세션 안에 들어가면</b> 그 둘을 부모-자식으로 잇습니다. 후보가 여러 개면 가장 늦게 시작한(가장 촘촘한) 앞 서버 세션을 고릅니다.<br>
@@ -299,6 +306,7 @@ tr.selrow td{background:var(--accent-bg)}
     · <b>보고서</b>: 위쪽 <b>보고서</b>는 분석 조건, 서버 표(로그 기간·경고), 의심 시간대 상위 20, 킵한 체인 전부(메모·당시 조건·판정·그래프·순서표와 원문)를 밝은 배경의 HTML 한 장으로 저장합니다. 킵이 없으면 지금 고른 체인을 넣습니다. 브라우저에서 PDF 로 인쇄할 수 있습니다.<br>
     · <b>작업 저장·열기</b>: 위쪽 <b>작업 저장</b>은 넣은 로그 원본(텍스트·wtmp)·서버 구성·IP·설정·킵·고른 체인을 JSON 파일 하나로 내려받고, <b>작업 열기</b>(또는 그 파일을 서버 칸에 끌어다 놓기)로 그대로 이어서 분석합니다. 로그 원본이 들어 있으니 파일을 다룰 때 주의하세요.<br>
     · <b>IP·계정 따라가기</b>: 순서표나 4번 화면의 IP·계정(점선 밑줄)을 누르거나 위쪽 칸에 넣으면, 모든 서버에서 그 값의 로그인을 강조합니다(그래프 노란 테두리, 행 노란 바탕, 지도 칸 테두리). 위쪽 막대에 서버별 건수가 나오고, 체인 목록의 <b>따라가기</b> 필터로 그 값이 들어간 체인만 볼 수 있습니다.<br>
+    · <b>SSH 연결 성격</b>(5번): 연결마다 다음 서버 로그인이 앞 서버 세션 안에서 일어났는지(밖이면 앞 서버에 아무도 없는데 접속 → 자동 연동 쪽), 그 앞 서버 세션도 릴레이 중이었는지, 새벽·업무시간·주말 비율, 같은 간격 반복(주기성), pty·계정 수로 <b>연동(자동) 성격 / 사람 릴레이 성격 / 혼합</b>을 판정합니다. wtmp 에는 pty 없는 자동 접속이 대개 안 남으므로 '자동 연동 없음'의 증명은 auth.log 로 해야 합니다.<br>
     · <b>시간대 대조 지도</b>(3번): 켜진 모든 서버의 로그인을 일·시간·10분 칸에 겹쳐 보여 주고, 서로 다른 서버 여러 대가 <b>동시 범위</b>(기본 15분) 안에 함께 로그인한 묶음을 점수 순으로 뽑습니다. 점수는 서버 수, 체인 순서(앞 서버 첫 로그인 뒤에 들어갔나), 출발 IP, 비교 서버 포함, 그 서버에서 처음 보는 출발지, 새벽 시간대로 매기며, 각 후보에서 바로 2번 체인(그 시간대로 확대)이나 4번 비교로 갈 수 있습니다. 회색 빗금 칸은 그 서버 로그가 없는 때입니다.<br>
     · <b>기간으로 끊어 보기</b>: 체인 목록 위에서 <b>월·주·일</b>을 고르고 ◀ ▶ 로 넘기면 그 기간에 출발한 체인만 보입니다(체인 없는 기간은 건너뜀). 고른 체인의 그래프·순서표는 <b>보기 기간</b>(날짜 입력, ◀ ▶, 하루, 한 달, 그래프 드래그 확대)으로 출발 세션 생명주기 안의 원하는 구간만 잘라 볼 수 있습니다.<br>
     · <b>긴 세션 상한</b>: 로그아웃 기록이 없거나 몇 달씩 이어진 세션은 그 기간 다음 서버의 모든 로그인을 자식으로 빨아들여 세로줄이 빽빽한 빗 모양 체인을 만듭니다. 그래서 부모로 볼 때는 시작 후 <b>긴 세션 상한</b>(기본 24시간)까지만 인정하고, 체인 목록에 <b>장기</b>·<b>로그아웃 없음</b> 경고를 붙입니다. 또 tty 가 seat0·:0·tty1 이거나 출발지가 비어 있는 로컬 로그인(서버 앞 GUI·콘솔, tmux)은 점프로 보지 않습니다.<br>
@@ -314,7 +322,7 @@ tr.selrow td{background:var(--accent-bg)}
 <script>
 'use strict';
 /* ───────── 상태 ───────── */
-const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, pivot: null, hm: { unit: 'day', base: 0, w: 15, min: 2, noLocal: true, pivotOnly: false, sel: null, more: false }, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, wsfull: false, ttoff: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
+const S = { slots: [], tol: 60, tz: 540, strict: false, sel: null, edgeSel: null, pivot: null, hm: { unit: 'day', base: 0, w: 15, min: 2, noLocal: true, pivotOnly: false, sel: null, more: false }, pu: 'all', ps: 0, win: null, maxPar: 24, gdense: false, wsfull: false, ttoff: false, view: 'chains', keepSel: null, keepShown: [], keepWarn: '', refRows: true, dbg: { l: 0, r: 1, side: null, idx: -1, ql: '', qr: '', only: false }, cf: 'all', cq: '', shown: [], fold: false };
 const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', MAX_SLOTS = 26;
 // 새 칸 이름: 아직 안 쓴 알파벳, 다 쓰면 S27 처럼 번호
 const nextName = () => [...NAMES].find(c => !S.slots.some(sl => sl.name === c)) || 'S' + (S.slots.length + 1);
@@ -647,7 +655,7 @@ function setPivot(kind, v) {
   S.pivot = !v || (S.pivot && S.pivot.kind === kind && S.pivot.v === v) ? null : { kind, v };
   $('#pvIn').value = S.pivot ? S.pivot.v : '';
   if (!S.pivot) { S.hm.pivotOnly = false; if (S.cf === 'pivot') S.cf = 'all'; }
-  renderPivotBar(); renderChains(); renderDetail(); renderHeat(); renderAll();
+  renderPivotBar(); renderChains(); renderDetail(); renderHeat(); renderAll(); renderEdges();
 }
 function renderPivotBar() {
   const el = $('#pvBar');
@@ -967,7 +975,7 @@ function schedule() {
 }
 
 /* ───────── 렌더: 체인 목록 ───────── */
-function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderHeat(); renderAll(); }
+function run() { analyze(); renderInfo(); renderFold(); renderChains(); renderDetail(); renderHeat(); renderAll(); renderEdges(); }
 const nm = k => esc(AS[k]?.name || NAMES[k]);
 // 화면용 HTML → 복사·CSV 용 글자 (태그 제거 + &#39; 같은 문자 풀기)
 const plainText = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; };
@@ -1793,6 +1801,132 @@ function gotoDbg(gr) {
   $('#all').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/* ───────── 5. SSH 연결 성격: 연동(자동)인가, 사람 릴레이에만 쓰였나 ─────────
+   서버 구성의 연결(P → X)마다 X 에 P 주소로 들어온 로그인을 모아
+   · 앞 서버 P 세션 안에서 일어났나 (밖이면 P 에 아무도 없는데 접속 → 자동 연동 쪽)
+   · 그 P 세션도 그 앞에서 들어온 것인가 (A→B→C 릴레이 중)
+   · 시간대(새벽·업무시간·주말), 주기성(같은 간격 반복), pty·머문 시간·계정 수
+   를 계산해 성격을 판정한다. wtmp 에는 pty 없는 자동 접속(ssh host 명령·scp·rsync)이 대개 안 남는다는 한계가 있다 */
+const WDK = '월화수목금토일';
+function edgeStats() {
+  if (R._edges) return R._edges;
+  const tol = S.tol * 1000, og = originSlot(), pats = og ? splitIps(og.origin) : [];
+  const idMap = new Map();
+  const copyOf = (P, i) => {                       // P 의 원본 세션 i 에 해당하는 분석 결과 세션 (부모 정보가 있음)
+    const pos = AS.indexOf(P); if (pos < 0) return null;
+    if (!idMap.has(pos)) idMap.set(pos, new Map(R.L[pos].map(x => [x.id, x])));
+    return idMap.get(pos).get(pos + ':' + i) || null;
+  };
+  const out = [];
+  for (const X of S.slots) {
+    if (X.off) continue;
+    const P = activeParent(X); if (!P) continue;
+    const addrs = hopAddrs(P, X);
+    const L = X.sessions.filter(x => !isLocalLogin(x) && (!addrs.length || hostMatch(x.host, addrs)));
+    const Ps = P.sessions, starts = Ps.map(p => p.s), tree = maxTree(Ps.map(parentEnd));
+    const hours = new Array(24).fill(0), wd = new Array(7).fill(0), users = new Map();
+    let inside = 0, relay = 0, relayKnown = 0, night = 0, biz = 0, wknd = 0, pty = 0;
+    const us = new Map();                          // 계정별: 같은 연결에 자동(서비스 계정)과 사람이 섞여 있을 때 나눠 보기
+    const durs = [];
+    for (const x of L) {
+      const cEndLo = x.e == null ? (x.endKind === 'gone' ? x.s : Infinity) : x.e;
+      const i = findLast(tree, upperBound(starts, x.sHi + tol) - 1, cEndLo - tol);
+      const u = us.get(x.user) || { n: 0, inside: 0, night: 0, biz: 0, wknd: 0, first: x.s, last: x.s };
+      us.set(x.user, u); u.n++; u.last = x.s;
+      if (i >= 0) {
+        inside++; u.inside++;
+        // 그 P 세션이 릴레이 중이었나: P 에 앞 서버가 있으면 그 P 세션의 부모가 있나, P 가 출발 서버면 출발 IP 에서 들어왔나
+        const pp = activeParent(P);
+        if (pp) { const c = copyOf(P, i); if (c) { relayKnown++; if (c.parent) relay++; } }
+        else if (P === og && pats.length) { relayKnown++; if (originMatch(Ps[i].host, pats)) relay++; }
+      }
+      const d = new Date(x.s), h = d.getUTCHours(), w = (d.getUTCDay() + 6) % 7;
+      hours[h]++; wd[w]++;
+      if (h < 6) { night++; u.night++; }
+      if (w < 5 && h >= 9 && h < 18) { biz++; u.biz++; }
+      if (w >= 5) { wknd++; u.wknd++; }
+      if (/^(pts|tty|vc|console|:)/.test(x.tty)) pty++;
+      if (x.e != null) durs.push(x.e - x.s);
+      users.set(x.user, (users.get(x.user) || 0) + 1);
+    }
+    // 주기성: 이어진 로그인 간격 중 가장 흔한 간격(분 단위)과, 그 근처(±2분 또는 ±5%)에 드는 비율
+    let period = null;
+    if (L.length >= 6) {
+      const iv = []; for (let k = 1; k < L.length; k++) iv.push(L[k].s - L[k - 1].s);
+      const cnt = new Map(); for (const v of iv) { const m = Math.round(v / 60000); if (m > 0) cnt.set(m, (cnt.get(m) || 0) + 1); }
+      let mode = 0, mc = 0; for (const [m, c] of cnt) if (c > mc) { mode = m; mc = c; }
+      if (mode) {
+        const near = iv.filter(v => Math.abs(v / 60000 - mode) <= Math.max(2, mode * .05)).length;
+        period = { min: mode, share: near / iv.length };
+      }
+    }
+    durs.sort((a, b) => a - b);
+    const n = L.length, pct = v => n ? v / n : 0;
+    const st = { P, X, n, addrs, noAddr: !addrs.length, inside: pct(inside), outside: pct(n - inside), relay: relayKnown ? relay / relayKnown : null,
+      night: pct(night), biz: pct(biz), wknd: pct(wknd), pty: pct(pty), hours, wd, period,
+      durMed: durs.length ? durs[Math.floor(durs.length / 2)] : null, users: [...users].sort((a, b) => b[1] - a[1]),
+      byUser: [...us].map(([user, u]) => Object.assign({ user, kind: u.n < 3 ? '보류' : (u.n - u.inside) / u.n >= .5 || u.night / u.n >= .15 || u.wknd / u.n >= .2 ? '연동' : u.inside / u.n >= .8 && u.biz / u.n >= .7 ? '사람' : '혼합' }, u)).sort((a, b) => b.n - a.n) };
+    // 판정
+    const why = [];
+    let auto = 0, human = 0;
+    if (n < 5) st.verdict = ['보류', '로그인이 너무 적음'];
+    else {
+      if (st.outside >= .5) { auto += 2; why.push(`앞 서버 세션 밖 ${Math.round(st.outside * 100)}%`); }
+      else if (st.inside >= .8) { human += 2; why.push(`앞 서버 세션 안 ${Math.round(st.inside * 100)}%`); }
+      if (st.night >= .15) { auto++; why.push(`새벽 ${Math.round(st.night * 100)}%`); } else if (st.night <= .05) { human++; why.push(`새벽 거의 없음`); }
+      if (st.wknd >= .2) { auto++; why.push(`주말 ${Math.round(st.wknd * 100)}%`); }
+      if (st.biz >= .7) { human++; why.push(`업무시간 ${Math.round(st.biz * 100)}%`); }
+      if (period && period.share >= .4) { auto += 2; why.push(`약 ${periodTxt(period.min)} 간격 ${Math.round(period.share * 100)}%`); }
+      if (st.users.length === 1 && n >= 20) { auto++; why.push(`계정 하나(${st.users[0][0]})`); }
+      if (st.relay != null && st.relay >= .8 && st.inside >= .8) { human++; why.push(`릴레이 중 ${Math.round(st.relay * 100)}%`); }
+      st.verdict = auto >= 3 && auto > human ? ['연동', '연동(자동) 성격'] : human >= 3 && human > auto ? ['사람', '사람 릴레이 성격'] : ['혼합', '혼합·판단 보류'];
+    }
+    st.why = why;
+    out.push(st);
+  }
+  R._edges = out;
+  return out;
+}
+const periodTxt = m => m % 1440 === 0 ? `${m / 1440}일` : m % 60 === 0 ? `${m / 60}시간` : `${m}분`;
+const VCLS = { '연동': 'warn', '사람': 'ok', '혼합': '', '보류': '' };
+function edgeBars(arr, labels, hl, w = 300) {   // 작은 막대그래프 (hl(i) 가 참이면 강조 색)
+  const mx = Math.max(1, ...arr), bw = w / arr.length, H = 70;
+  return `<svg width="${w}" height="${H + 16}" viewBox="0 0 ${w} ${H + 16}" class="ebar">` + arr.map((v, i) => {
+    const h = v / mx * H;
+    return `<rect x="${i * bw + 1}" y="${H - h}" width="${bw - 2}" height="${Math.max(h, v ? 1 : 0)}" rx="1" fill="${hl(i) ? 'var(--warn)' : 'var(--accent)'}"><title>${labels[i]} ${v}건</title></rect>`
+      + (arr.length <= 7 || i % 3 === 0 ? `<text x="${i * bw + bw / 2}" y="${H + 12}" text-anchor="middle">${labels[i]}</text>` : '');
+  }).join('') + '</svg>';
+}
+function renderEdges() {
+  const box = $('#edge');
+  if (!R) { box.innerHTML = ''; return; }
+  const E = edgeStats();
+  if (!E.length) { box.innerHTML = '<div class="empty">앞 서버가 정해진 서버가 2개 이상이어야 합니다.</div>'; return; }
+  const p = v => v == null ? '-' : Math.round(v * 100) + '%';
+  const sel = E.find(e => e.X.uid === S.edgeSel) || E[0];
+  box.innerHTML = `
+    <div class="tbar"><span class="hint"><b style="color:var(--warn)">한계</b>: wtmp 에는 보통 pty 를 받은 대화형 세션만 남습니다. 스크립트의 <code>ssh host 명령</code>·scp·rsync 같은 자동 연동은 대개 안 찍히므로,
+      여기서 "사람 릴레이 성격"은 <b>대화형 SSH 가 사람 릴레이에만 쓰였다</b>는 뜻이지 자동 연동이 없었다는 증명은 아닙니다 — auth.log·secure 의 <code>Accepted</code> 로 확인하세요.</span></div>
+    <div class="scroll" style="max-height:none"><table><thead><tr><th>연결</th><th>로그인</th><th title="앞 서버에 누군가 접속해 있던 동안 일어난 비율">앞 서버 세션 안</th><th title="앞 서버 세션 자체도 그 앞 서버(또는 출발 IP)에서 들어온 것 — A→B→C 릴레이 중">릴레이 중</th><th>새벽 0~6시</th><th>업무시간 평일 9~18시</th><th>주말</th><th>주기성</th><th>pty</th><th>머문 시간(중앙)</th><th>계정</th><th>판정</th></tr></thead><tbody>
+    ${E.map(e => `<tr class="clk${e === sel ? ' selrow' : ''}" data-x="${e.X.uid}">
+      <td><b>${esc(e.P.name)} → <span${e.X.ref ? ' style="color:var(--r-ref)"' : ''}>${esc(e.X.name)}</span></b>${e.noAddr ? ' <span class="bd warn" title="앞 서버 IP 가 없어 이 서버의 원격 로그인 전부로 계산">IP 미입력</span>' : ''}</td>
+      <td>${e.n}</td><td class="tm">${p(e.inside)}</td><td class="tm">${p(e.relay)}</td><td class="tm">${p(e.night)}</td><td class="tm">${p(e.biz)}</td><td class="tm">${p(e.wknd)}</td>
+      <td class="tm">${e.period ? `${periodTxt(e.period.min)} ${p(e.period.share)}` : '-'}</td><td class="tm">${p(e.pty)}</td><td class="tm">${e.durMed == null ? '-' : fDur(e.durMed)}</td>
+      <td title="${esc(e.users.slice(0, 8).map(([u, c]) => u + ' ' + c).join(', '))}">${e.users.length}</td>
+      <td><span class="bd ${VCLS[e.verdict[0]]}" title="${esc(e.why.join(' · '))}">${e.verdict[1]}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="edet">
+      <div><b>${esc(sel.P.name)} → ${esc(sel.X.name)}</b> <span class="bd ${VCLS[sel.verdict[0]]}">${sel.verdict[1]}</span>
+        <div class="hint">${sel.why.length ? '근거: ' + esc(sel.why.join(' · ')) : esc(sel.verdict[1])} · 로그인 ${sel.n}건${sel.noAddr ? ' · 앞 서버 IP 미입력(이 서버의 원격 로그인 전부)' : ` · 출발지 ${esc(sel.addrs.map(a => a.ip).join(', '))}`}</div>
+        <table style="margin-top:6px"><thead><tr><th>계정</th><th>로그인</th><th>세션 안</th><th>새벽</th><th>업무시간</th><th>주말</th><th>기간</th><th>성격</th></tr></thead><tbody>
+        ${sel.byUser.slice(0, 12).map(u => `<tr><td>${pvA('user', u.user)}</td><td>${u.n}</td><td class="tm">${p(u.inside / u.n)}</td><td class="tm">${p(u.night / u.n)}</td><td class="tm">${p(u.biz / u.n)}</td><td class="tm">${p(u.wknd / u.n)}</td><td class="tm">${fD(u.first).slice(5)} ~ ${fD(u.last).slice(5)}</td><td><span class="bd ${VCLS[u.kind]}">${u.kind === '연동' ? '연동(자동)' : u.kind === '사람' ? '사람 릴레이' : u.kind}</span></td></tr>`).join('')}
+        </tbody></table>${sel.byUser.length > 1 && new Set(sel.byUser.filter(u => u.n >= 3).map(u => u.kind)).size > 1 ? '<div class="hint" style="color:var(--warn)">⚠ 이 연결은 계정마다 성격이 다릅니다 — 연동용 연결을 사람이 같이 썼을 수 있습니다</div>' : ''}</div>
+      <div><div class="hint">시간대 (노랑 = 새벽 0~6시)</div>${edgeBars(sel.hours, sel.hours.map((_, i) => i + '시'), i => i < 6, 360)}</div>
+      <div><div class="hint">요일 (노랑 = 주말)</div>${edgeBars(sel.wd, [...WDK], i => i >= 5, 170)}</div>
+    </div>`;
+  box.querySelectorAll('tr[data-x]').forEach(tr => tr.onclick = () => { S.edgeSel = +tr.dataset.x; renderEdges(); });
+}
+
 /* ───────── 렌더: 노드 로그 보기 · 비교 (디버그) ─────────
    체인 판정과 별개로 원본 세션을 그대로 보여준다. 한쪽 세션을 누르면 다른 쪽에서
    그 시간 안에 "완전히 들어간" 세션만 진하게, 나머지는 흐리게 */
@@ -2040,7 +2174,12 @@ function buildReport() {
     if (KEEPS.length) chains = KEEPS.map(k => withKeep(k, ch => chainHtml(ch, k))).join('');
     else if (R) { const ch = R.chains.find(c => c.root.id === S.sel); if (ch) chains = chainHtml(ch, null); }
   } finally { tmp.remove(); }
-  h += `<h2>4. ${KEEPS.length ? `킵한 체인 ${KEEPS.length}개` : '고른 체인'}</h2>` + (chains || '<div class="hint">체인 없음 — 2번에서 체인을 고르거나 킵하세요</div>');
+  if (R) {
+    const E = edgeStats(), pc = v => v == null ? '-' : Math.round(v * 100) + '%';
+    h += `<h2>4. SSH 연결 성격</h2><div class="hint">연결마다 앞 서버 세션 안 비율·시간대·주기성으로 판정. wtmp 에는 pty 없는 자동 접속(ssh host 명령·scp·rsync)이 대개 안 남으므로 "사람 릴레이 성격"은 대화형 SSH 기준이며, 자동 연동이 없었다는 증명은 아닙니다(auth.log·secure 로 확인).</div>`
+      + (E.length ? `<table><thead><tr><th>연결</th><th>로그인</th><th>앞 서버 세션 안</th><th>릴레이 중</th><th>새벽</th><th>업무시간</th><th>주말</th><th>주기성</th><th>pty</th><th>계정</th><th>판정</th><th>근거</th></tr></thead><tbody>${E.map(e => `<tr><td><b>${esc(e.P.name)} → ${esc(e.X.name)}</b>${e.noAddr ? ' <span class="bd warn">IP 미입력</span>' : ''}</td><td>${e.n}</td><td>${pc(e.inside)}</td><td>${pc(e.relay)}</td><td>${pc(e.night)}</td><td>${pc(e.biz)}</td><td>${pc(e.wknd)}</td><td>${e.period ? periodTxt(e.period.min) + ' ' + pc(e.period.share) : '-'}</td><td>${pc(e.pty)}</td><td>${e.users.length}</td><td><span class="bd ${VCLS[e.verdict[0]]}">${e.verdict[1]}</span></td><td class="hint">${esc(e.why.join(' · '))}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">앞 서버가 정해진 연결 없음</div>');
+  }
+  h += `<h2>5. ${KEEPS.length ? `킵한 체인 ${KEEPS.length}개` : '고른 체인'}</h2>` + (chains || '<div class="hint">체인 없음 — 2번에서 체인을 고르거나 킵하세요</div>');
   h += `<h2>참고</h2><div class="hint">wtmp(last) 의 로그인 시각 겹침으로 추정한 결과입니다. 같은 시간대의 다른 사용자 접속이 섞일 수 있고, sftp 등 pty 없는 접속은 wtmp 에 남지 않을 수 있으며,
     로그가 없는 기간(회색 빗금)은 '접속 없음' 이 아니라 '알 수 없음' 입니다. 결론은 원본 로그(원문 열)와 auth.log·bash_history 등으로 확인하세요. 이 보고서에는 로그 원문 일부가 들어 있습니다.</div>`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>hopviewer 분석 보고서 ${esc(fD(Date.now() + S.tz * 60000))}</title><style>${reportCss()}</style></head><body>${h}</body></html>`;
