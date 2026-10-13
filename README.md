@@ -74,6 +74,22 @@ A 에서 B 로 들어간 세션은 B 의 wtmp 에 남고, 그 세션이 살아 �
 last -F -i -f /var/log/wtmp > $(hostname)_last.txt
 ```
 
+### auth.log 같이 넣기 (Ubuntu)
+
+서버 칸에 `/var/log/auth.log`(`auth.log.1`, `.gz` 포함)를 wtmp 와 함께 끌어다 놓으면 내용을 보고 자동으로 구분합니다.
+wtmp 에는 pty 를 받은 대화형 세션만 남지만 auth.log 의 `sshd` 줄에는 **모든 SSH 인증 성공**(`Accepted`)이 남으므로,
+wtmp 에 없는 접속(pty 없는 명령 실행·scp·sftp)을 찾을 수 있습니다.
+
+- 형식: 예전 syslog(`Oct  3 09:15:20 host sshd[123]: …`, 연도는 연도 칸 → 파일 수정 시각 순으로 정함)와
+  Ubuntu 23.10+ 기본(`2026-10-03T09:15:20.123+09:00 host sshd[123]: …`), `sshd-session[…]` 모두.
+- 읽는 줄: `Accepted … for 계정 from IP port N ssh2: 키 지문`, `session closed`, `Received disconnect`/`Disconnected from user … IP port N`,
+  `subsystem request for sftp`(다른 PID 로 찍혀도 IP:포트로 같은 접속에 묶음), (VERBOSE) `Starting session: shell/command/subsystem`.
+- 서버 칸: auth 접속 수 · sftp 수 · **wtmp 에 없는 접속** 수 · auth 로그 기간.
+- 2번 체인: wtmp 에 없는 SSH 접속을 청록색 `auth` 막대·행으로 넣고 회수 판정에도 반영. wtmp 회수 세션은 auth 로 `sftp 확인` / `sftp 아님` 표시.
+- 5번 연결 성격: wtmp 와 auth 가 **겹치는 기간**의 `auth 접속 / wtmp 에 남은 것 / 비대화형` 수. 비대화형이 새벽·앞 세션 밖·같은 간격이면 `연동 — auth 확인`,
+  겹친 기간 내내 비대화형 0건이면 `사람 릴레이 — auth 확인`, 둘이 섞이면 `연동(svc) + 사람 릴레이(root) 섞임` 처럼 계정을 나눠 표시.
+- auth.log 는 보관 기간이 짧으므로, 그 이전 기간은 겹치는 기간의 결과를 근거로 한 추정이라는 점을 보고서에 밝히세요.
+
 `/var/log/lastlog` 는 계정별 마지막 1회 로그인만 있어 쓸 수 없습니다. `btmp` 는 실패 기록이라 대상이 아닙니다.
 
 ### 윈도우 서버가 끼어 있을 때 (예: A 리눅스 → B 윈도우 → C 리눅스)
